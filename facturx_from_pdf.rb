@@ -222,7 +222,14 @@ class PDFDataExtractor
     lines = @text.split("\n")
     
     # Chercher le nom avant le mot "Facture"
-    facture_line = lines.find_index { |l| l.include?('Facture') || l.include?('FACTURE') || l.include?('Invoice') }
+    facture_line = nil
+    lines.each_with_index do |l, idx|
+      if l.include?('Facture') || l.include?('FACTURE') || l.include?('Invoice')
+        facture_line = idx
+        break
+      end
+    end
+    
     if facture_line && facture_line > 0
       # Prendre les 2-3 lignes avant
       start_line = [0, facture_line - 3].max
@@ -241,16 +248,16 @@ class PDFDataExtractor
     end
     
     # Adresse, SIREN, etc.
-    supplier[:adresse] = extract_address('fournisseur')
-    supplier[:code_postal] = extract_postal_code('fournisseur')
-    supplier[:ville] = extract_city('fournisseur')
-    supplier[:pays] = extract_country('fournisseur')
-    supplier[:siren] = extract_siren('fournisseur')
-    supplier[:tva_intracommunautaire] = extract_vat_number('fournisseur')
+    supplier[:adresse] = extract_address_from_text
+    supplier[:code_postal] = extract_postal_code
+    supplier[:ville] = extract_city
+    supplier[:pays] = extract_country
+    supplier[:siren] = extract_siren
+    supplier[:tva_intracommunautaire] = extract_vat_number
     supplier[:iban] = extract_iban
     supplier[:bic] = extract_bic
-    supplier[:email] = extract_email('fournisseur')
-    supplier[:telephone] = extract_phone('fournisseur')
+    supplier[:email] = extract_email
+    supplier[:telephone] = extract_phone
     
     supplier
   end
@@ -280,12 +287,12 @@ class PDFDataExtractor
       client[:nom] = match[1].strip if match
     end
     
-    client[:adresse] = extract_address('client')
-    client[:code_postal] = extract_postal_code('client')
-    client[:ville] = extract_city('client')
-    client[:pays] = extract_country('client')
-    client[:siren] = extract_siren('client')
-    client[:tva_intracommunautaire] = extract_vat_number('client')
+    client[:adresse] = extract_address_from_text
+    client[:code_postal] = extract_postal_code
+    client[:ville] = extract_city
+    client[:pays] = extract_country
+    client[:siren] = extract_siren
+    client[:tva_intracommunautaire] = extract_vat_number
     
     client
   end
@@ -495,105 +502,101 @@ class PDFDataExtractor
     nil
   end
 
-  # Extrait une adresse
-  def extract_address(type)
-    # Chercher après le nom du fournisseur/client
-    if type == 'fournisseur'
-      supplier_name = extract_supplier[:nom]
-      return '' if supplier_name.nil?
-      
-      # Trouver la ligne avec le nom et les lignes suivantes
-      lines = @text.split("\n")
-      name_line = lines.find_index { |l| l.include?(supplier_name) }
-      return '' unless name_line
-      
-      # Prendre les 3-4 lignes suivantes
-      address_lines = lines[name_line+1..name_line+4] || []
-      address = address_lines.join(" ").strip
-      
-      # Nettoyer (enlever les numéros de téléphone, emails, etc.)
-      address = address.gsub(/\d{10,}/, '').gsub(/[\d\s]{10,}/, '')
-      address.strip
-    else
-      client_name = extract_client[:nom]
-      return '' if client_name.nil?
-      
-      lines = @text.split("\n")
-      name_line = lines.find_index { |l| l.include?(client_name) }
-      return '' unless name_line
-      
-      address_lines = lines[name_line+1..name_line+4] || []
-      address = address_lines.join(" ").strip
-      address = address.gsub(/\d{10,}/, '').gsub(/[\d\s]{10,}/, '')
-      address.strip
+  # Extrait une adresse du texte
+  def extract_address_from_text
+    # Chercher des motifs d'adresse (rue, avenue, boulevard, etc.)
+    address_patterns = [
+      /(\d{1,5}\s+(?:rue|Rue|avenue|Avenue|boulevard|Boulevard|allée|Allée|chemin|Chemin|impasse|Impasse|place|Place|quai|Quai|route|Route|square|Square|bd|Bd)\s+.+?)(?:\n|\s{2,}|$)/i,
+      /(\d{1,5}\s+[A-Z\s]+\s+(?:rue|Rue|avenue|Avenue|boulevard|Boulevard)\s+.+?)(?:\n|\s{2,}|$)/i,
+      /([A-Z][A-Za-z\s\-']+\s+(?:rue|Rue|avenue|Avenue|boulevard|Boulevard|allée|Allée)\s+.+?)(?:\n|\s{2,}|$)/i
+    ]
+    
+    address_patterns.each do |pattern|
+      match = @text.match(pattern)
+      return match[1].strip if match
     end
+    
+    # Si pas trouvé, essayer de trouver une ligne avec des chiffres et des mots
+    lines = @text.split("\n")
+    lines.each do |line|
+      if line.match?(/\d{1,5}\s+[A-Za-z\s]+/) && !line.match?(/(?:Facture|Total|TVA|Date|Client|Fournisseur|Invoice)/i)
+        return line.strip
+      end
+    end
+    
+    ''
   end
 
   # Extrait un code postal
-  def extract_postal_code(type)
-    # Chercher un code postal français (5 chiffres)
-    match = @text.match(/(\d{5})/)
-    return match[1] if match
+  def extract_postal_code
+    # Chercher un code postal français (5 chiffres) ou international
+    match = @text.match(/(?:(\d{5})|(\d{4}\s?\d{4}))/)
+    return match[1] || match[2].gsub(' ', '') if match
     ''
   end
 
   # Extrait une ville
-  def extract_city(type)
+  def extract_city
     # Chercher après le code postal
-    match = @text.match(/\d{5}\s+([A-Z\s]+)/i)
+    match = @text.match(/\d{5}\s+([A-ZÉÈÊËÀÂÇÔÏÛÜ\s]+)/i)
     return match[1].strip if match
     ''
   end
 
   # Extrait un pays
-  def extract_country(type)
+  def extract_country
     # Chercher FR, BE, etc.
-    match = @text.match(/([A-Z]{2})/)
-    return match[1] if match && ['FR', 'BE', 'DE', 'IT', 'ES', 'LU', 'CH'].include?(match[1])
+    match = @text.match(/(?:Pays|Country|Pays\s*:)\s*([A-Z]{2})/i)
+    return match[1] if match && ['FR', 'BE', 'DE', 'IT', 'ES', 'LU', 'CH', 'US', 'GB', 'CA'].include?(match[1])
+    
+    # Sinon, chercher n'importe quel code pays de 2 lettres
+    match = @text.match(/\b([A-Z]{2})\b/)
+    return match[1] if match && ['FR', 'BE', 'DE', 'IT', 'ES', 'LU', 'CH', 'US', 'GB', 'CA'].include?(match[1])
+    
     'FR'
   end
 
   # Extrait un SIREN
-  def extract_siren(type)
+  def extract_siren
     # SIREN: 9 chiffres
-    match = @text.match(/(?:SIREN|N°\s*SIREN|Siren)\s*[:\s]*(\d{9})/i)
+    match = @text.match(/(?:SIREN|N°\s*SIREN|Siren|N°\s*Siren)\s*[:\s]*(\d{9})(?:\D|\s|$)/i)
     return match[1] if match
     ''
   end
 
   # Extrait un numéro de TVA intracommunautaire
-  def extract_vat_number(type)
+  def extract_vat_number
     # FRXX XXXXXXX ou FRXXXXXXXXXX
-    match = @text.match(/(?:TVA|N°\s*TVA|VAT|N°\s*intracommunautaire)\s*[:\s]*([A-Z]{2}\d{9,11})/i)
+    match = @text.match(/(?:TVA|N°\s*TVA|VAT|N°\s*intracommunautaire|Intracommunautaire|N°\s*intra)\s*[:\s]*([A-Z]{2}\d{9,11})(?:\D|\s|$)/i)
     return match[1] if match
     ''
   end
 
   # Extrait un IBAN
   def extract_iban
-    match = @text.match(/(?:IBAN|N°\s*IBAN)\s*[:\s]*([A-Z]{2}\d{2}[A-Z0-9]{11,30})/i)
+    match = @text.match(/(?:IBAN|N°\s*IBAN|IBAN\s*:)\s*([A-Z]{2}\d{2}[A-Z0-9]{11,30})(?:\D|\s|$)/i)
     return match[1] if match
     ''
   end
 
   # Extrait un BIC
   def extract_bic
-    match = @text.match(/(?:BIC|SWIFT|N°\s*BIC)\s*[:\s]*([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}[A-Z0-9]{0,11})/i)
+    match = @text.match(/(?:BIC|SWIFT|N°\s*BIC|BIC\s*:)\s*([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}[A-Z0-9]{0,11})(?:\D|\s|$)/i)
     return match[1] if match
     ''
   end
 
   # Extrait un email
-  def extract_email(type)
-    match = @text.match(/([\w\.\-]+@[\w\.\-]+\.[a-z]{2,})/i)
+  def extract_email
+    match = @text.match(/([\w\.\-]+@[\w\.\-]+\.[a-z]{2,4})(?:\D|\s|$)/i)
     return match[1] if match
     ''
   end
 
   # Extrait un téléphone
-  def extract_phone(type)
-    match = @text.match(/(?:Tél|Tel|Phone|Téléphone|Portable)\s*[:\s]*([\d\s\.\-]{10,})/i)
-    return match[1].gsub(/\s/, '') if match
+  def extract_phone
+    match = @text.match(/(?:Tél|Tel|Phone|Téléphone|Portable|Mobile|Fax)\s*[:\s]*([\d\s\.\-]{7,15})(?:\D|\s|$)/i)
+    return match[1].gsub(/[\s\.\-]/, '') if match
     ''
   end
 
