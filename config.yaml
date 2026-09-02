@@ -1,0 +1,57 @@
+# Configuration pour la génération Factur-X
+# Ce fichier contient les paramètres par défaut pour le script Ruby
+
+# Profil Factur-X à utiliser (MINIMUM, BASIC, EN16931, EXTENDED)
+profil: "EN16931"
+
+# Informations du fournisseur (à personnaliser)
+fournisseur:
+  nom: "MA SOCIETE"
+  siren: "123456789"
+  siret: "12345678900010"
+  adresse: "123 Rue de la Facture"
+  code_postal: "75001"
+  ville: "PARIS"
+  pays: "FR"
+  telephone: "+33123456789"
+  email: "contact@masociete.fr"
+  iban: "FR7612345678901234567890123"
+  bic: "BNPAFRPP"
+  tva_intracommunautaire: "FR123456789"
+
+# Informations par défaut du client (à personnaliser)
+client:
+  nom: "CLIENT TEST"
+  siren: "987654321"
+  adresse: "321 Rue du Client"
+  code_postal: "75002"
+  ville: "PARIS"
+  pays: "FR"
+
+# Paramètres de la facture
+facture:
+  numero: "FACT-2024-001"
+  date: "2024-01-15"
+  date_echeance: "2024-02-15"
+  devise: "EUR"
+  conditions_reglement: "30 jours net"
+
+# Lignes de facture par défaut (exemple)
+lignes:
+  - description: "Service de consultation"
+    quantite: 1
+    prix_unitaire: 100.00
+    tva: 20.0
+    unite: "UN"
+  - description: "Frais de dossier"
+    quantite: 1
+    prix_unitaire: 50.00
+    tva: 20.0
+    unite: "UN"
+
+# Paramètres PDF
+pdf:
+  # Chemin vers Ghostscript (nécessaire pour zugpferd)
+  ghostscript_path: "/usr/bin/gs"
+  # Résolution pour la conversion PDF/A-3
+  resolution: 300

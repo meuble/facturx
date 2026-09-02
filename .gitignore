@@ -1,0 +1,38 @@
+# Ignore bundler config
+/.bundle/
+
+# Ignore the default database
+*.sqlite3
+
+# Ignore all logfiles and tempfiles
+/log/*.log
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+
+# Ignore pidfiles
+*.pid
+
+# Ignore generated XML files
+*.xml
+
+# Ignore generated Factur-X PDFs
+*_facturx.pdf
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore test coverage
+/coverage/
+
+# Ignore rspec status
+.rspec_status
+vendor/
+Gemfile.lock
