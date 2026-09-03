@@ -151,7 +151,7 @@ module FacturX
       # "Client" line may have inline IDs
       client_line = @lines.find { |l| l =~ /^Client\b/i }
       if client_line
-        m = client_line.match(/Client\s*–?\s*(?:N°\s*TVA\s*[:.]?\s*([A-Z]{2}\d{9,11}))?\s*(?:–?\s*SIRET\s*[:.]?\s*(\d{14}))?/i)
+        m = client_line.match(/Client\s*[-\u2013\u2014]?\s*(?:N\u00b0\s*TVA\s*[:.]?\s*([A-Z]{2}\d{9,11}))?\s*(?:[-\u2013\u2014]?\s*SIRET\s*[:.]?\s*(\d{14}))?/i)
         h[:vat_identifier]      = m[1] if m && m[1]
         h[:legal_registration_id] = m[2] if m && m[2]
       end
