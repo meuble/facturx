@@ -56,12 +56,14 @@ module FacturX
           uri_id.content = @data.buyer[:electronic_address] || "contact@client.fr"
           uri.add_child(uri_id)
 
-          # Insert before SpecifiedTaxRegistration or SpecifiedLegalOrganization
-          # to maintain CII schema element order
+          # Insert after the last element that must precede EndPointURIUniversalCommunication
+          # per CII D16B schema order:
+          # URIUniversalCommunication → SpecifiedTaxRegistration → EndPointURIUniversalCommunication
           ref_node = buyer.at(".//ram:SpecifiedTaxRegistration") ||
-                     buyer.at(".//ram:SpecifiedLegalOrganization")
+                     buyer.at(".//ram:URIUniversalCommunication") ||
+                     buyer.at(".//ram:PostalTradeAddress")
           if ref_node
-            ref_node.add_previous_sibling(uri)
+            ref_node.add_next_sibling(uri)
           else
             buyer.add_child(uri)
           end
