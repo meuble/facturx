@@ -130,7 +130,20 @@ module FacturX
 
       party.vat_identifier        = hash[:vat_identifier]        if hash[:vat_identifier]
       party.legal_registration_id = hash[:legal_registration_id].to_s.strip unless hash[:legal_registration_id].to_s.strip.empty?
-      party.identifier              = hash[:legal_registration_id].to_s.strip unless hash[:legal_registration_id].to_s.strip.empty?
+
+      # For buyer: if legal_registration_id is a 14-digit SIRET,
+      # set identifier (ram:ID / BT-46) to the 9-digit SIREN to avoid
+      # B2C misclassification by the PPF.
+      reg_id = hash[:legal_registration_id].to_s.strip
+      unless reg_id.empty?
+        if reg_id.match?(/^\d{14}$/)
+          # SIRET → use first 9 digits (SIREN) for identifier
+          party.identifier = reg_id[0, 9]
+        else
+          party.identifier = reg_id
+        end
+      end
+
       party.trading_name          = hash[:trading_name].to_s.strip          unless hash[:trading_name].to_s.strip.empty?
 
       if hash[:electronic_address]
