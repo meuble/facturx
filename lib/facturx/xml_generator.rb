@@ -30,12 +30,58 @@ module FacturX
       doc = Nokogiri::XML(xml)
 
       # BR-FR-10: Add schemeID="0002" to Seller ID (SIREN)
-      seller_id = doc.at("//ram:SellerTradeParty/ram:ID[not(@schemeID)]")
-      if seller_id && seller_id.text.strip.match?(/^\d{9}$/)
-        seller_id["schemeID"] = "0002"
+      # Must apply to both SellerTradeParty/ID and SpecifiedLegalOrganization/ID
+      seller = doc.at("//ram:SellerTradeParty")
+      if seller
+        seller.xpath(".//ram:ID[not(@schemeID)]").each do |id_node|
+          if id_node.text.strip.match?(/^\d{9}$/)
+            id_node["schemeID"] = "0002"
+          end
+        end
       end
 
-      # BR-FR-05: Add French legal notes (PMT, PMD, AAB)
+      # BR-FR-12: Fix buyer endpoint — CII D22B requires EndPointURIUniversalCommunication
+      # in BuyerTradeParty, but zugpferd emits URIUniversalCommunication. Remove the wrong
+      # one and add the correct one if missing.
+      buyer = doc.at("//ram:BuyerTradeParty")
+      if buyer
+        # Remove incorrectly placed URIUniversalCommunication (zugpferd bug for buyer)
+        buyer.xpath(".//ram:URIUniversalCommunication").each(&:remove)
+
+        # Add EndPointURIUniversalCommunication if still missing
+        if buyer.at(".//ram:EndPointURIUniversalCommunication").nil?
+          uri = doc.create_element("ram:EndPointURIUniversalCommunication")
+          uri_id = doc.create_element("ram:URIID")
+          uri_id["schemeID"] = "EM"
+          uri_id.content = @data.buyer[:electronic_address] || "contact@client.fr"
+          uri.add_child(uri_id)
+
+          # Insert before SpecifiedTaxRegistration or SpecifiedLegalOrganization
+          # to maintain CII schema element order
+          ref_node = buyer.at(".//ram:SpecifiedTaxRegistration") ||
+                     buyer.at(".//ram:SpecifiedLegalOrganization")
+          if ref_node
+            ref_node.add_previous_sibling(uri)
+          else
+            buyer.add_child(uri)
+          end
+        end
+      end
+
+      # BR-FR-08: Set BusinessProcess based on payment status (B1 for unpaid B2B, B2 for paid)
+      bp = doc.at("//ram:BusinessProcessSpecifiedDocumentContextParameter/ram:ID")
+      if bp
+        paid = (@data.prepaid_amount || 0).to_d
+        total = (@data.tax_inclusive_amount || 0).to_d
+        due = (@data.payable_amount || 0).to_d
+        if paid == total && due == 0
+          bp.content = "B2"
+        else
+          bp.content = "B1"
+        end
+      end
+
+      # BR-FR-05: Add French legal notes (PMT, PMD, AAB) - add BEFORE closing tag
       exchanged_doc = doc.at("//rsm:ExchangedDocument")
       if exchanged_doc
         %w[PMT PMD AAB].each do |code|
@@ -48,23 +94,6 @@ module FacturX
           note.add_child(subject)
           exchanged_doc.add_child(note)
         end
-      end
-
-      # BR-FR-08: Change BusinessProcess to B2
-      bp = doc.at("//ram:BusinessProcessSpecifiedDocumentContextParameter/ram:ID")
-      if bp
-        bp.content = "B2"
-      end
-
-      # BR-FR-12: Add buyer endpoint if missing
-      buyer = doc.at("//ram:BuyerTradeParty")
-      if buyer && !buyer.at("ram:URIUniversalCommunication")
-        uri = doc.create_element("ram:URIUniversalCommunication")
-        uri_id = doc.create_element("ram:URIID")
-        uri_id["schemeID"] = "EM"
-        uri_id.content = @data.buyer[:electronic_address] || "contact@client.fr"
-        uri.add_child(uri_id)
-        buyer.add_child(uri)
       end
 
       doc.to_xml(indent: 2)
@@ -128,9 +157,9 @@ module FacturX
       end
 
       party.vat_identifier        = hash[:vat_identifier]        if hash[:vat_identifier]
-      party.legal_registration_id = hash[:legal_registration_id] if hash[:legal_registration_id]
-      party.identifier              = hash[:legal_registration_id] if hash[:legal_registration_id]
-      party.trading_name          = hash[:trading_name]          if hash[:trading_name]
+      party.legal_registration_id = hash[:legal_registration_id].to_s.strip unless hash[:legal_registration_id].to_s.strip.empty?
+      party.identifier              = hash[:legal_registration_id].to_s.strip unless hash[:legal_registration_id].to_s.strip.empty?
+      party.trading_name          = hash[:trading_name].to_s.strip          unless hash[:trading_name].to_s.strip.empty?
 
       if hash[:electronic_address]
         party.electronic_address        = hash[:electronic_address]
