@@ -40,36 +40,6 @@ module FacturX
         end
       end
 
-      # BR-FR-12: Fix buyer endpoint — CII D22B requires EndPointURIUniversalCommunication
-      # in BuyerTradeParty, but zugpferd emits URIUniversalCommunication. Remove the wrong
-      # one and add the correct one if missing.
-      buyer = doc.at("//ram:BuyerTradeParty")
-      if buyer
-        # Remove incorrectly placed URIUniversalCommunication (zugpferd bug for buyer)
-        buyer.xpath(".//ram:URIUniversalCommunication").each(&:remove)
-
-        # Add EndPointURIUniversalCommunication if still missing
-        if buyer.at(".//ram:EndPointURIUniversalCommunication").nil?
-          uri = doc.create_element("ram:EndPointURIUniversalCommunication")
-          uri_id = doc.create_element("ram:URIID")
-          uri_id["schemeID"] = "EM"
-          uri_id.content = @data.buyer[:electronic_address] || "contact@client.fr"
-          uri.add_child(uri_id)
-
-          # Insert after the last element that must precede EndPointURIUniversalCommunication
-          # per CII D16B schema order:
-          # URIUniversalCommunication → SpecifiedTaxRegistration → EndPointURIUniversalCommunication
-          ref_node = buyer.at(".//ram:SpecifiedTaxRegistration") ||
-                     buyer.at(".//ram:URIUniversalCommunication") ||
-                     buyer.at(".//ram:PostalTradeAddress")
-          if ref_node
-            ref_node.add_next_sibling(uri)
-          else
-            buyer.add_child(uri)
-          end
-        end
-      end
-
       # BR-FR-08: Set BusinessProcess based on payment status (B1 for unpaid B2B, B2 for paid)
       bp = doc.at("//ram:BusinessProcessSpecifiedDocumentContextParameter/ram:ID")
       if bp
@@ -166,6 +136,14 @@ module FacturX
       if hash[:electronic_address]
         party.electronic_address        = hash[:electronic_address]
         party.electronic_address_scheme = hash[:electronic_address_scheme] || "EM"
+      end
+
+      # BR-FR-12: BT-49 (buyer electronic address) is mandatory in France.
+      # Ensure buyer always has a URIUniversalCommunication element.
+      # If no email was provided, fall back to a placeholder so zugpferd emits it.
+      unless party.electronic_address
+        party.electronic_address        = "contact@client.fr"
+        party.electronic_address_scheme = "EM"
       end
 
       party
