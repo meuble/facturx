@@ -1,256 +1,213 @@
-# Factur-X Generator pour Ruby
+# FacturX
 
-Un script Ruby complet pour **générer un XML Factur-X conforme EN 16931** et **l'intégrer dans un PDF existant** (comme ceux générés par Facturation.pro), afin de créer un fichier compatible avec **SuperPDP** et les autres Plateformes de Dématérialisation Partenaire (PDP).
+A lightweight Ruby library and CLI for generating **Factur-X / ZUGFeRD** conformant hybrid PDF invoices.
 
-## 📋 À propos
+- **Language**: Ruby (3.1+)
+- **Profiles supported**: `MINIMUM`, `BASICWL`, `BASIC`, `EN16931`, `EXTENDED`
+- **PDF/A conformance**: PDF/A-3b with embedded CII XML
+- **Spec**: EN 16931-1, Factur-X v1.0
 
-**Factur-X** est un format hybride de facture électronique qui combine :
-- Un **PDF lisible par l'humain** (PDF/A-3)
-- Un **fichier XML structuré** conforme à la norme européenne EN 16931 (syntaxe CII D22B)
+---
 
-Ce format est **obligatoire en France à partir de 2026** pour la facturation électronique entre entreprises.
-
-## ✅ Fonctionnalités
-
-- ✅ Génération automatique d'un **XML Factur-X conforme** (CII D22B)
-- ✅ Intégration du XML dans un **PDF existant** (même non PDF/A-3)
-- ✅ Support des **5 profils Factur-X** : MINIMUM, BASIC, BASICWL, EN16931, EXTENDED
-- ✅ Configuration **personnalisable** (fournisseur, client, lignes de facture)
-- ✅ **Mode interactif** pour saisir les informations
-- ✅ **Validation** des données de base
-- ✅ Compatible avec **SuperPDP** et les autres PDP
-
-## 🚀 Installation
-
-### 1. Prérequis
-
-- **Ruby** 2.7 ou supérieur
-- **Bundler** (pour gérer les dépendances)
-- **Ghostscript** (nécessaire pour zugpferd)
-- **qpdf** (méthode alternative si zugpferd échoue)
-
-#### Installation des prérequis
-
-**Sur Debian/Ubuntu :**
-```bash
-sudo apt-get update
-sudo apt-get install ruby ruby-dev bundler ghostscript qpdf
-```
-
-**Sur macOS (avec Homebrew) :**
-```bash
-brew install ruby bundler ghostscript qpdf
-```
-
-### 2. Installation des gems
+## Installation
 
 ```bash
+git clone <repo-url> facturx
 cd facturx
 bundle install
 ```
 
-## 🧪 Exécuter les tests
-
-Pour vérifier que tout fonctionne correctement :
-
-```bash
-# Installer les dépendances (incluant rspec)
-bundle install
-
-# Exécuter tous les tests
-bundle exec rspec
-
-# Exécuter avec plus de détails
-bundle exec rspec --format documentation
-
-# Exécuter un fichier de test spécifique
-bundle exec rspec spec/facturx_generator_spec.rb
-```
-
-**Résultats attendus** :
-- 30+ tests passés ✅
-- Tests de configuration, génération XML, et intégration PDF
-
-## 📥 Utilisation
-
-### Mode simple (avec configuration par défaut)
-
-```bash
-# Générer une facture Factur-X à partir d'un PDF
-ruby facturx_generator.rb ma_facture.pdf
-
-# Résultat : ma_facture_facturx.pdf (avec XML intégré)
-```
-
-### Mode avec configuration personnalisée
-
-```bash
-# Utiliser un fichier de configuration YAML
-ruby facturx_generator.rb ma_facture.pdf --config ma_config.yaml
-
-# Spécifier le profil Factur-X
-ruby facturx_generator.rb ma_facture.pdf --profil EN16931
-
-# Spécifier le fichier de sortie
-ruby facturx_generator.rb ma_facture.pdf --output ma_facture_final.pdf
-```
-
-### Mode interactif
-
-```bash
-# Mode interactif pour saisir toutes les informations
-ruby facturx_generator.rb ma_facture.pdf --interactive
-```
-
-### Mode ultra-simple
-
-```bash
-ruby facturx_simple.rb ma_facture.pdf "Nom du Client" 1200.00 FACT-001
-```
-
-## 📝 Configuration
-
-### Fichier de configuration (config.yaml)
-
-```yaml
-# Profil Factur-X à utiliser
-profil: "EN16931"
-
-# Informations du fournisseur
-fournisseur:
-  nom: "MA SOCIETE"
-  siren: "123456789"
-  siret: "12345678900010"
-  adresse: "123 Rue de la Facture"
-  code_postal: "75001"
-  ville: "PARIS"
-  pays: "FR"
-  telephone: "+33123456789"
-  email: "contact@masociete.fr"
-  iban: "FR7612345678901234567890123"
-  bic: "BNPAFRPP"
-  tva_intracommunautaire: "FR123456789"
-
-# Informations du client
-client:
-  nom: "CLIENT TEST"
-  siren: "987654321"
-  adresse: "321 Rue du Client"
-  code_postal: "75002"
-  ville: "PARIS"
-  pays: "FR"
-
-# Paramètres de la facture
-facture:
-  numero: "FACT-2024-001"
-  date: "2024-01-15"
-  date_echeance: "2024-02-15"
-  devise: "EUR"
-  conditions_reglement: "30 jours net"
-
-# Lignes de facture
-lignes:
-  - description: "Service de consultation"
-    quantite: 1
-    prix_unitaire: 100.00
-    tva: 20.0
-    unite: "UN"
-  - description: "Frais de dossier"
-    quantite: 1
-    prix_unitaire: 50.00
-    tva: 20.0
-    unite: "UN"
-```
-
-## 🎯 Exemple complet
-
-### 1. Personnaliser la configuration
-
-Éditez le fichier `config.yaml` avec vos informations.
-
-### 2. Générer la facture Factur-X
-
-```bash
-ruby facturx_generator.rb facture_fournisseur.pdf --config config.yaml
-```
-
-### 3. Vérifier le résultat
-
-Ouvrez le fichier `facture_fournisseur_facturx.pdf` avec **Adobe Acrobat Reader** :
-- Allez dans **Affichage → Afficher/masquer → Barre d'outils de pièce jointe**
-- Vérifiez que `factur-x.xml` est présent
-
-### 4. Valider avec un outil en ligne
-
-Utilisez le [validateur Factur-X gratuit](https://e-invoice.be/blog/factur-x-format) pour vérifier la conformité.
-
-## 🔧 Problèmes courants
-
-### Erreur : "zugpferd nécessite Ghostscript"
-
-Installez Ghostscript :
-```bash
-# Debian/Ubuntu
-sudo apt-get install ghostscript
-
-# macOS
-brew install ghostscript
-```
-
-### Erreur : "qpdf n'est pas installé"
-
-Installez qpdf :
-```bash
-# Debian/Ubuntu
-sudo apt-get install qpdf
-
-# macOS
-brew install qpdf
-```
-
-### Erreur : "Bundler n'est pas installé"
-
-Installez Bundler :
-```bash
-gem install bundler
-```
-
-### Le PDF généré n'est pas conforme PDF/A-3
-
-Le script utilise zugpferd qui convertit automatiquement le PDF en PDF/A-3. Si vous rencontrez des problèmes, essayez :
-1. De partir d'un PDF simple (sans images complexes)
-2. D'utiliser la méthode alternative avec qpdf (déjà implémentée dans le script)
-
-## 📚 Ressources
-
-- [Site officiel Factur-X (FNFE-MPE)](https://fnfe-mpe.org/factur-x/)
-- [Documentation EN 16931](https://ec.europa.eu/digital-building-blocks/wikis/display/DIGIT/EN+16931)
-- [Validateur Factur-X en ligne](https://e-invoice.be/blog/factur-x-format)
-- [SuperPDP - Plateforme de dématérialisation](https://www.superpdp.tech/)
-
-## 🔄 Workflow avec Facturation.pro
-
-1. **Exportez votre facture** depuis Facturation.pro en PDF
-2. **Exécutez le script** : `ruby facturx_generator.rb facture_exportée.pdf --interactive`
-3. **Saisissez les informations** demandées (numéro de facture, client, lignes, etc.)
-4. **Récupérez le fichier** `facture_exportée_facturx.pdf`
-5. **Envoyez via SuperPDP** comme une facture électronique standard
-
-## 💡 Conseils
-
-- **Testez toujours** vos fichiers Factur-X avec un validateur avant envoi
-- **Conservez une copie** du PDF original et du XML généré
-- **Personnalisez le profil** selon vos besoins (EN16931 est le plus courant)
-- **Vérifiez les totaux** : le XML doit correspondre exactement au PDF
-
-## 📜 Licence
-
-MIT License - Libre d'utilisation pour un usage personnel ou professionnel.
+Requires:
+- Ruby ≥ 3.1 (tested on 3.4.7)
+- Bundler
 
 ---
 
-**Auteur** : Script généré pour faciliter la transition vers la facturation électronique obligatoire en France.
+## Quick Start — CLI
 
-**Contribuez** : Ce script est open source. N'hésitez pas à l'améliorer et à le partager !
+### Zero-config mode (recommended)
 
-**Besoin d'aide ?** Ouvrez une issue sur le dépôt GitHub ! 🎯
+The tool automatically extracts invoice data from the PDF and generates a valid Factur-X PDF:
+
+```bash
+ruby -Ilib bin/facturx input.pdf -o output-facturx.pdf
+```
+
+That's it. No configuration file needed.
+
+### Optional YAML override
+
+If the PDF extraction misses something (or you want to override specific fields), create a partial YAML file:
+
+```yaml
+# override.yaml
+seller:
+  electronic_address: "team@foreverbije.com"
+  electronic_address_scheme: "EM"
+```
+
+And pass it:
+
+```bash
+ruby -Ilib bin/facturx input.pdf -c override.yaml -o output-facturx.pdf
+```
+
+The YAML values override the auto-extracted ones. Only specify what you want to change.
+
+### Extract and review
+
+To see what the tool extracted from the PDF (as YAML):
+
+```bash
+ruby -Ilib bin/facturx input.pdf -e
+```
+
+This is useful for verifying extraction quality before generating.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output FILE` | Output PDF path (default: `<input>_facturx.pdf`) |
+| `-c, --config FILE` | Optional YAML file to override extracted data |
+| `-p, --profile PROFILE` | Factur-X profile: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED |
+| `-e, --extract` | Extract data as YAML, do not generate PDF |
+| `--validate` | Validate without generating |
+| `-v, --version` | Show version |
+
+---
+
+## Library Usage
+
+```ruby
+require "facturx"
+
+# 1. Auto-extract from PDF
+data = FacturX::PdfExtractor.new("input.pdf").to_invoice_data
+
+# 2. Or build manually
+data = FacturX::InvoiceData.new(
+  profile: "EN16931",
+  number: "2026-001",
+  issue_date: Date.new(2026, 1, 15),
+  currency_code: "EUR",
+  seller: { name: "Acme Corp", country_code: "FR", vat_identifier: "FR123456789" },
+  buyer:  { name: "Client SA",  country_code: "FR" },
+  line_items: [
+    { id: "1", name: "Consulting", quantity: 1, unit_code: "C62",
+      price_amount: 1000.00, line_total_amount: 1000.00,
+      tax_percent: 20.0, tax_category: "S" }
+  ],
+  tax_breakdowns: [
+    { taxable_amount: 1000.00, tax_amount: 200.00, tax_percent: 20.0, tax_category: "S" }
+  ],
+  line_extension_amount: 1000.00,
+  tax_exclusive_amount:  1000.00,
+  tax_inclusive_amount:  1200.00,
+  payable_amount:        1200.00
+)
+
+# Validate
+raise "Invalid invoice" unless data.valid?
+
+# Generate Factur-X PDF
+FacturX.generate(
+  input_pdf: "input.pdf",
+  output_pdf: "output-facturx.pdf",
+  data: data
+)
+```
+
+---
+
+## What Gets Extracted Automatically
+
+From a typical French B2B invoice PDF, the tool extracts:
+
+| Field | Source |
+|-------|--------|
+| Invoice number | "FACTURE N° …" |
+| Issue date | "Date : …" |
+| Due date | "Date limite de règlement : …" |
+| Note | "Objet : …" |
+| Seller name | Block before "FACTURE" |
+| Seller address | Street + postal code + city |
+| Seller TVA | "N° TVA …" (first occurrence) |
+| Seller SIREN | "SIREN …" or "… RCS" |
+| Seller IBAN/BIC | "IBAN: …", "BIC: …" |
+| Buyer name | Line before "FACTURE" |
+| Buyer address | Street + postal code |
+| Buyer TVA | "Client – N° TVA …" |
+| Buyer SIRET | "SIRET: …" |
+| Line items | Table rows (name, description, qty, price, total) |
+| Totals | "Total HT", "TVA …", "TOTAL TTC" |
+| Tax breakdown | Computed from totals and rate |
+
+If any field is missing or wrong, use `-e` to inspect, then create a small YAML override.
+
+---
+
+## Architecture
+
+```
+lib/
+├── facturx.rb              # Main entry point
+└── facturx/
+    ├── version.rb           # 2.0.0
+    ├── invoice_data.rb      # Structured data model + validation
+    ├── config.rb            # YAML loader with deep merge (optional override)
+    ├── xml_generator.rb     # CII XML via zugpferd gem
+    ├── pdf_embedder.rb      # PDF/A-3 embedding via hexapdf
+    └── pdf_extractor.rb     # Auto-extraction from PDF text
+```
+
+### Key Design Decisions
+
+1. **zugpferd** for XML generation — produces valid CII D16B XML, avoids hand-rolled XML pitfalls.
+2. **hexapdf** for PDF manipulation — writes low-level structures (Names tree, AF array, XMP, OutputIntent) without shelling out.
+3. **InvoiceData** validation — checks field presence, monetary consistency (line totals, tax, grand total), and required EN 16931 fields before generation.
+4. **PDF version handling** — forces PDF 1.7+ in catalog so embedded files and AF arrays are recognized by validators.
+5. **Auto-extraction** — zero-config approach: parse the PDF text heuristically, then let the user optionally override with YAML.
+
+---
+
+## Validation
+
+Upload the generated PDF to:
+- [SuperPDP Factur-X Validator](https://www.superpdp.tech/outils/validateur-facture-electronique)
+
+The tool verifies:
+- CII XML syntax and schema
+- Factur-X profile compliance
+- PDF/A-3b structure (embedded file, XMP metadata, AF array)
+
+---
+
+## Testing
+
+```bash
+bundle exec rspec
+```
+
+Tests cover:
+- `InvoiceData` validation (presence, totals coherence, profile IDs)
+- `Config` YAML loading and deep merge
+- `PdfExtractor` auto-extraction from sample PDF text
+- `XmlGenerator` CII structure verification
+- `PdfEmbedder` PDF/A-3 structure (Names, AF, Metadata, OutputIntents)
+- End-to-end integration: PDF → extract → XML → PDF
+
+---
+
+## Resources
+
+- [FNFE-MPE — Implementer Factur-X](https://fnfe-mpe.org/factur-x/implementer-factur-x/)
+- [Factur-X Specifications (PDF)](https://fnfe-mpe.org/factur-x/)
+- [EN 16931-1](https://www.cen.eu/) — European standard for e-invoicing
+- [ZUGFeRD/Factur-X Technical Specification](https://www.ferd-net.de/)
+
+---
+
+## License
+
+MIT

@@ -1,0 +1,184 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+
+require "optparse"
+require "date"
+require "facturx"
+
+options = {
+  input_pdf: nil,
+  output_pdf: nil,
+  config_path: nil,
+  profile: "EN16931",
+  extract_only: false,
+  validate_only: false
+}
+
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: facturx [options] <input.pdf>"
+  opts.separator ""
+  opts.separator "Generate a Factur-X PDF from an existing invoice PDF."
+  opts.separator "By default all invoice data is extracted automatically from the PDF."
+  opts.separator ""
+  opts.separator "Options:"
+
+  opts.on("-o", "--output FILE", "Output PDF path (default: <input>_facturx.pdf)") do |f|
+    options[:output_pdf] = f
+  end
+
+  opts.on("-c", "--config FILE", "Optional YAML file to override extracted data") do |f|
+    options[:config_path] = f
+  end
+
+  opts.on("-p", "--profile PROFILE", "Factur-X profile: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED (default: EN16931)") do |p|
+    options[:profile] = p.upcase
+  end
+
+  opts.on("-e", "--extract", "Extract data from input PDF and print as YAML (no PDF generated)") do
+    options[:extract_only] = true
+  end
+
+  opts.on("--validate", "Validate extracted/configured data without generating") do
+    options[:validate_only] = true
+  end
+
+  opts.on("-h", "--help", "Show this help") do
+    puts opts
+    exit
+  end
+
+  opts.on("-v", "--version", "Show version") do
+    puts "facturx #{FacturX::VERSION}"
+    exit
+  end
+end
+
+parser.parse!
+
+if ARGV.empty?
+  puts parser
+  exit 1
+end
+
+options[:input_pdf] = ARGV.first
+
+unless File.exist?(options[:input_pdf])
+  $stderr.puts "Error: input PDF not found: #{options[:input_pdf]}"
+  exit 1
+end
+
+# Default output: append _facturx_v{N} to input basename (auto-increment)
+options[:output_pdf] ||= begin
+  basename = File.basename(options[:input_pdf], File.extname(options[:input_pdf]))
+  dir      = File.dirname(options[:input_pdf])
+
+  version = 1
+  version += 1 while File.exist?(File.join(dir, "#{basename}_facturx_v#{version}.pdf"))
+
+  File.join(dir, "#{basename}_facturx_v#{version}.pdf")
+end
+
+# ------------------------------------------------------------------
+# Extract mode: print YAML and exit
+# ------------------------------------------------------------------
+if options[:extract_only]
+  extractor = FacturX::PdfExtractor.new(options[:input_pdf])
+  data = extractor.to_invoice_data(profile: options[:profile])
+
+  yaml = {
+    "profile" => data.profile,
+    "seller" => data.seller.transform_keys(&:to_s),
+    "buyer" => data.buyer.transform_keys(&:to_s),
+    "invoice" => {
+      "number" => data.number,
+      "issue_date" => data.issue_date&.strftime("%Y-%m-%d"),
+      "due_date" => data.due_date&.strftime("%Y-%m-%d"),
+      "currency_code" => data.currency_code,
+      "note" => data.note,
+      "buyer_reference" => data.buyer_reference,
+      "payment_terms" => data.payment_terms
+    },
+    "line_items" => data.line_items.map { |li| li.transform_keys(&:to_s) },
+    "tax_breakdowns" => data.tax_breakdowns.map { |tb| tb.transform_keys(&:to_s) },
+    "totals" => {
+      "line_extension_amount" => data.line_extension_amount&.to_f,
+      "tax_exclusive_amount" => data.tax_exclusive_amount&.to_f,
+      "tax_inclusive_amount" => data.tax_inclusive_amount&.to_f,
+      "payable_amount" => data.payable_amount&.to_f,
+      "prepaid_amount" => data.prepaid_amount&.to_f
+    }
+  }
+  puts yaml.to_yaml
+  exit 0
+end
+
+# ------------------------------------------------------------------
+# Load invoice data (auto-extract + optional config override)
+# ------------------------------------------------------------------
+begin
+  # Start with auto-extracted data
+  extractor = FacturX::PdfExtractor.new(options[:input_pdf])
+  invoice_data = extractor.to_invoice_data(profile: options[:profile])
+
+  # If config file provided, merge it over the extracted data
+  if options[:config_path]
+    config = FacturX::Config.new(options[:config_path])
+    config_inv = config.to_invoice_data
+
+    # Simple merge: config values override extracted ones
+    invoice_data.profile   = config_inv.profile   if config_inv.profile
+    invoice_data.number    = config_inv.number    if config_inv.number
+    invoice_data.issue_date = config_inv.issue_date if config_inv.issue_date
+    invoice_data.due_date  = config_inv.due_date  if config_inv.due_date
+    invoice_data.currency_code = config_inv.currency_code if config_inv.currency_code
+    invoice_data.note      = config_inv.note      if config_inv.note
+    invoice_data.buyer_reference = config_inv.buyer_reference if config_inv.buyer_reference
+    invoice_data.payment_terms = config_inv.payment_terms if config_inv.payment_terms
+    invoice_data.seller    = config_inv.seller    if config_inv.seller&.any? { |_, v| v }
+    invoice_data.buyer     = config_inv.buyer     if config_inv.buyer&.any? { |_, v| v }
+    invoice_data.line_items = config_inv.line_items if config_inv.line_items&.any?
+    invoice_data.tax_breakdowns = config_inv.tax_breakdowns if config_inv.tax_breakdowns&.any?
+    invoice_data.line_extension_amount = config_inv.line_extension_amount if config_inv.line_extension_amount
+    invoice_data.tax_exclusive_amount = config_inv.tax_exclusive_amount if config_inv.tax_exclusive_amount
+    invoice_data.tax_inclusive_amount = config_inv.tax_inclusive_amount if config_inv.tax_inclusive_amount
+    invoice_data.payable_amount = config_inv.payable_amount if config_inv.payable_amount
+    invoice_data.prepaid_amount = config_inv.prepaid_amount if config_inv.prepaid_amount
+  end
+rescue => e
+  $stderr.puts "Error loading invoice data: #{e.message}"
+  $stderr.puts e.backtrace.first(5) if ENV["DEBUG"]
+  exit 1
+end
+
+# ------------------------------------------------------------------
+# Validate
+# ------------------------------------------------------------------
+errors = invoice_data.validate
+unless errors.empty?
+  $stderr.puts "Validation failed:"
+  errors.each { |e| $stderr.puts "  • #{e}" }
+  exit 1
+end
+
+if options[:validate_only]
+  puts "✅ Invoice data is valid."
+  exit 0
+end
+
+# ------------------------------------------------------------------
+# Generate
+# ------------------------------------------------------------------
+begin
+  FacturX.generate(
+    input_pdf: options[:input_pdf],
+    output_pdf: options[:output_pdf],
+    data: invoice_data
+  )
+  puts "✅ Factur-X PDF created: #{options[:output_pdf]}"
+rescue => e
+  $stderr.puts "Error generating Factur-X: #{e.message}"
+  $stderr.puts e.backtrace.first(5) if ENV["DEBUG"]
+  exit 1
+end

@@ -1,57 +1,69 @@
-# Configuration pour la génération Factur-X
-# Ce fichier contient les paramètres par défaut pour le script Ruby
+# Factur-X Configuration
+# See: https://fnfe-mpe.org/factur-x/
 
-# Profil Factur-X à utiliser (MINIMUM, BASIC, EN16931, EXTENDED)
-profil: "EN16931"
+profile: "EN16931"
 
-# Informations du fournisseur (à personnaliser)
-fournisseur:
-  nom: "MA SOCIETE"
-  siren: "123456789"
-  siret: "12345678900010"
-  adresse: "123 Rue de la Facture"
-  code_postal: "75001"
-  ville: "PARIS"
-  pays: "FR"
-  telephone: "+33123456789"
-  email: "contact@masociete.fr"
-  iban: "FR7612345678901234567890123"
-  bic: "BNPAFRPP"
-  tva_intracommunautaire: "FR123456789"
+seller:
+  name: "Forever Bije"
+  legal_registration_id: "852113703"
+  vat_identifier: "FR17852113703"
+  postal_zone: "75019"
+  street_name: "138 rue de Crimée"
+  city_name: "PARIS"
+  country_code: "FR"
+  electronic_address: "team@foreverbije.com"
+  electronic_address_scheme: "EM"
+  iban: "FR7616958000013956989766253"
+  bic: "QNTOFRP1XXX"
 
-# Informations par défaut du client (à personnaliser)
-client:
-  nom: "CLIENT TEST"
-  siren: "987654321"
-  adresse: "321 Rue du Client"
-  code_postal: "75002"
-  ville: "PARIS"
-  pays: "FR"
+buyer:
+  name: "Pierlis - M. RAYNAUD Pierre Loïc"
+  legal_registration_id: "42313762900048"
+  vat_identifier: "FR89423137629"
+  postal_zone: "75007"
+  street_name: "16 rue de la Comète"
+  city_name: "PARIS"
+  country_code: "FR"
 
-# Paramètres de la facture
-facture:
-  numero: "FACT-2024-001"
-  date: "2024-01-15"
-  date_echeance: "2024-02-15"
-  devise: "EUR"
-  conditions_reglement: "30 jours net"
+invoice:
+  number: "202609-1"
+  issue_date: "2026-09-01"
+  due_date: "2026-09-08"
+  currency_code: "EUR"
+  note: "Prestation techniques pour Pierlis - Août 2026"
+  buyer_reference: ""
+  payment_terms: "À réception de la facture"
 
-# Lignes de facture par défaut (exemple)
-lignes:
-  - description: "Service de consultation"
-    quantite: 1
-    prix_unitaire: 100.00
-    tva: 20.0
-    unite: "UN"
-  - description: "Frais de dossier"
-    quantite: 1
-    prix_unitaire: 50.00
-    tva: 20.0
-    unite: "UN"
+line_items:
+  - id: "1"
+    name: "Wiziboat - App Update"
+    description: "#72 - Update NodeJS version, #79 - Meteor 3.5 - Issue with rental contract generation"
+    quantity: 2
+    unit_code: "C62"
+    price_amount: 722.50
+    line_total_amount: 1445.00
+    tax_percent: 20.0
+    tax_category: "S"
 
-# Paramètres PDF
-pdf:
-  # Chemin vers Ghostscript (nécessaire pour zugpferd)
-  ghostscript_path: "/usr/bin/gs"
-  # Résolution pour la conversion PDF/A-3
-  resolution: 300
+  - id: "2"
+    name: "Wiziboat - Planet Service deployment"
+    description: "#76 - Configure deployment on Planet service"
+    quantity: 4
+    unit_code: "C62"
+    price_amount: 722.50
+    line_total_amount: 2890.00
+    tax_percent: 20.0
+    tax_category: "S"
+
+tax_breakdowns:
+  - taxable_amount: 4335.00
+    tax_amount: 867.00
+    tax_percent: 20.0
+    tax_category: "S"
+
+totals:
+  line_extension_amount: 4335.00
+  tax_exclusive_amount: 4335.00
+  tax_inclusive_amount: 5202.00
+  payable_amount: 5202.00
+  prepaid_amount: 0.00

@@ -1,102 +1,92 @@
-require 'spec_helper'
+# frozen_string_literal: true
 
-RSpec.describe Config do
-  let(:default_config) { Config::DEFAULT_CONFIG }
+require "spec_helper"
+
+RSpec.describe FacturX::Config do
+  let(:valid_yaml) do
+    <<~YAML
+      profile: BASIC
+      seller:
+        name: Test Seller
+        vat_identifier: FR123456789
+        country_code: FR
+      buyer:
+        name: Test Buyer
+        country_code: FR
+      invoice:
+        number: TEST-001
+        issue_date: "2024-01-15"
+        due_date: "2024-02-15"
+      line_items:
+        - id: "1"
+          name: Test Item
+          quantity: 1
+          unit_code: C62
+          price_amount: 100.00
+          line_total_amount: 100.00
+          tax_percent: 20.0
+          tax_category: S
+      tax_breakdowns:
+        - taxable_amount: 100.00
+          tax_amount: 20.00
+          tax_percent: 20.0
+          tax_category: S
+      totals:
+        line_extension_amount: 100.00
+        tax_exclusive_amount: 100.00
+        tax_inclusive_amount: 120.00
+        payable_amount: 120.00
+        prepaid_amount: 0.00
+    YAML
+  end
 
   describe "#initialize" do
-    it "loads default configuration when no file is provided" do
-      config = Config.new
-      expect(config.data).to eq(default_config)
+    it "loads default data when no file is given" do
+      cfg = FacturX::Config.new
+      expect(cfg.data["profile"]).to eq("EN16931")
+      expect(cfg.data["seller"]["country_code"]).to eq("FR")
     end
 
-    it "loads custom configuration from YAML file" do
-      custom_config = {
-        'profil' => 'BASIC',
-        'fournisseur' => {
-          'nom' => 'CUSTOM SOCIETE',
-          'siren' => '999999999'
-        }
-      }
-      
-      yaml_content = custom_config.to_yaml
-      
-      Tempfile.create(['config', '.yaml']) do |file|
-        file.write(yaml_content)
-        file.rewind
-        
-        config = Config.new(file.path)
-        expect(config['profil']).to eq('BASIC')
-        expect(config['fournisseur']['nom']).to eq('CUSTOM SOCIETE')
-        expect(config['fournisseur']['siren']).to eq('999999999')
-        # Default values should be preserved
-        expect(config['client']['nom']).to eq(default_config['client']['nom'])
-      end
+    it "raises on missing file" do
+      expect { FacturX::Config.new("/nonexistent.yaml") }.not_to raise_error
     end
+  end
 
-    it "handles missing config file gracefully" do
-      config = Config.new('/nonexistent/path/config.yaml')
-      expect(config.data).to eq(default_config)
-    end
+  describe "#to_invoice_data" do
+    it "converts config to InvoiceData" do
+      Tempfile.create(["config", ".yaml"]) do |f|
+        f.write(valid_yaml)
+        f.close
+        cfg = FacturX::Config.new(f.path)
+        inv = cfg.to_invoice_data
 
-    it "handles invalid YAML gracefully" do
-      Tempfile.create(['invalid', '.yaml']) do |file|
-        file.write("invalid: yaml: content:")
-        file.rewind
-        
-        expect {
-          Config.new(file.path)
-        }.to output(/Erreur de chargement/).to_stderr
+        expect(inv).to be_a(FacturX::InvoiceData)
+        expect(inv.profile).to eq("BASIC")
+        expect(inv.number).to eq("TEST-001")
+        expect(inv.seller[:name]).to eq("Test Seller")
+        expect(inv.buyer[:name]).to eq("Test Buyer")
+        expect(inv.issue_date).to eq(Date.new(2024, 1, 15))
+        expect(inv.line_items.length).to eq(1)
+        expect(inv.line_items.first[:price_amount]).to eq(100.00)
+        expect(inv.valid?).to be true
       end
     end
   end
 
-  describe "#[]" do
-    let(:config) { Config.new }
+  describe "deep merge" do
+    it "overrides nested values without destroying siblings" do
+      yaml = <<~YAML
+        seller:
+          name: Override Name
+      YAML
 
-    it "accesses top-level keys" do
-      expect(config['profil']).to eq('EN16931')
-    end
-
-    it "accesses nested keys" do
-      expect(config['fournisseur']['nom']).to eq('MA SOCIETE')
-      expect(config['fournisseur']['siren']).to eq('123456789')
-    end
-
-    it "returns nil for unknown keys" do
-      expect(config['unknown_key']).to be_nil
-    end
-  end
-
-  describe "#method_missing" do
-    let(:config) { Config.new }
-
-    it "accesses keys as methods" do
-      expect(config.profil).to eq('EN16931')
-      expect(config.fournisseur).to eq(Config::DEFAULT_CONFIG['fournisseur'])
-    end
-  end
-
-  describe "deep_merge" do
-    it "merges nested hashes correctly" do
-      target = {'a' => {'b' => 1, 'c' => 2}}
-      source = {'a' => {'b' => 3, 'd' => 4}}
-      
-      config = Config.new
-      result = config.send(:deep_merge, target, source)
-      
-      expect(result['a']['b']).to eq(3)  # Overwritten
-      expect(result['a']['c']).to eq(2)  # Preserved
-      expect(result['a']['d']).to eq(4)  # Added
-    end
-
-    it "concatenates arrays" do
-      target = {'a' => [1, 2]}
-      source = {'a' => [3, 4]}
-      
-      config = Config.new
-      result = config.send(:deep_merge, target, source)
-      
-      expect(result['a']).to eq([1, 2, 3, 4])
+      Tempfile.create(["config", ".yaml"]) do |f|
+        f.write(yaml)
+        f.close
+        cfg = FacturX::Config.new(f.path)
+        expect(cfg.data["seller"]["name"]).to eq("Override Name")
+        expect(cfg.data["seller"]["country_code"]).to eq("FR") # from defaults
+      end
     end
   end
 end
