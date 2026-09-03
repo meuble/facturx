@@ -29,13 +29,15 @@ module FacturX
     def apply_french_fixes!(xml)
       doc = Nokogiri::XML(xml)
 
-      # BR-FR-10: Add schemeID="0002" to Seller ID (SIREN)
-      # Must apply to both SellerTradeParty/ID and SpecifiedLegalOrganization/ID
-      seller = doc.at("//ram:SellerTradeParty")
-      if seller
-        seller.xpath(".//ram:ID[not(@schemeID)]").each do |id_node|
-          if id_node.text.strip.match?(/^\d{9}$/)
-            id_node["schemeID"] = "0002"
+      # BR-FR-10: Add schemeID="0002" to ALL 9-digit SIREN IDs
+      # in both SellerTradeParty and BuyerTradeParty
+      %w[SellerTradeParty BuyerTradeParty].each do |party_name|
+        trade_party = doc.at("//ram:#{party_name}")
+        if trade_party
+          trade_party.xpath(".//ram:ID[not(@schemeID)]").each do |id_node|
+            if id_node.text.strip.match?(/^\d{9}$/)
+              id_node["schemeID"] = "0002"
+            end
           end
         end
       end
