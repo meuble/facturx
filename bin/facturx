@@ -215,6 +215,13 @@ if options[:interactive]
     payable_amount: "Amount still due: total including VAT minus prepaid amount."
   }.freeze
 
+  ELECTRONIC_SCHEMES = {
+    "0225" => "French e-invoicing identifier, normally based on the 9-digit SIREN (recommended starting point)",
+    "0002" => "French SIRENE identifier, based on a SIREN or SIRET (legacy/common Peppol scheme)",
+    "0009" => "French establishment identifier, based on the 14-digit SIRET",
+    "EM"   => "Email address (usually not accepted as a French PDP routing address)"
+  }.freeze
+
   def prompt(label, current_value, required: false)
     value = current_value.is_a?(BigDecimal) ? current_value.to_s("F") : current_value
     default = value.to_s.strip.empty? ? nil : value.to_s.strip
@@ -258,6 +265,28 @@ if options[:interactive]
     prompt("#{label}#{required ? ' *' : ''}", current_value, required: required)
   end
 
+  def prompt_electronic_address(role, party)
+    puts "  This is the routing address used to deliver the electronic invoice."
+    puts "  Check the Peppol directory or ask the #{role}'s PDP; it is not automatically the VAT number."
+
+    registration_id = party[:legal_registration_id].to_s.gsub(/\D/, "")
+    suggested_siren = registration_id.length == 14 ? registration_id[0, 9] : registration_id if registration_id.length >= 9
+    if party[:electronic_address].to_s.empty? && suggested_siren
+      puts "  Suggested value from the registration number: #{suggested_siren}"
+    end
+
+    current_scheme = party[:electronic_address_scheme]
+    puts "  Scheme choices:"
+    ELECTRONIC_SCHEMES.each { |code, description| puts "    #{code}: #{description}" }
+    puts "  The full identifier is written as scheme:value, for example 0225:#{suggested_siren || '123456789'}."
+    scheme = prompt("#{role.capitalize} scheme ID", current_scheme || "0225")
+    scheme = ELECTRONIC_SCHEMES.keys.find { |code| code == scheme } || scheme
+    address = prompt_field("#{role.capitalize} electronic address (BT-49)", :electronic_address, party[:electronic_address] || suggested_siren, required: true)
+
+    party[:electronic_address] = address
+    party[:electronic_address_scheme] = scheme
+  end
+
   puts "\n=== SELLER ==="
   invoice_data.seller[:name]                = prompt_field("Seller name", :name, invoice_data.seller[:name], required: true)
   invoice_data.seller[:street_name]         = prompt("Seller street",              invoice_data.seller[:street_name])
@@ -267,11 +296,10 @@ if options[:interactive]
   invoice_data.seller[:vat_identifier]      = prompt("Seller TVA",                 invoice_data.seller[:vat_identifier],      required: true)
   invoice_data.seller[:legal_registration_id] = prompt("Seller SIREN",             invoice_data.seller[:legal_registration_id], required: true)
   invoice_data.seller[:iban]                = prompt("Seller IBAN",                invoice_data.seller[:iban])
-  invoice_data.seller[:electronic_address]  = prompt("Seller email (PEPPOL/PPF)",  invoice_data.seller[:electronic_address])
+  prompt_electronic_address("seller", invoice_data.seller)
   invoice_data.seller[:trading_name]        = prompt_field("Seller trading name", :trading_name, invoice_data.seller[:trading_name])
   invoice_data.seller[:bic]                 = prompt_field("Seller BIC", :bic, invoice_data.seller[:bic])
   invoice_data.seller[:payment_means_code]  = prompt_field("Payment means code", :payment_means_code, invoice_data.seller[:payment_means_code])
-  invoice_data.seller[:electronic_address_scheme] = prompt_field("Seller address scheme", :electronic_address_scheme, invoice_data.seller[:electronic_address_scheme])
 
   puts "\n=== BUYER ==="
   invoice_data.buyer[:name]                 = prompt_field("Buyer name", :name, invoice_data.buyer[:name], required: true)
@@ -281,9 +309,8 @@ if options[:interactive]
   invoice_data.buyer[:country_code]         = prompt("Buyer country",              invoice_data.buyer[:country_code]) || "FR"
   invoice_data.buyer[:vat_identifier]       = prompt("Buyer TVA",                  invoice_data.buyer[:vat_identifier],       required: true)
   invoice_data.buyer[:legal_registration_id] = prompt("Buyer SIRET",               invoice_data.buyer[:legal_registration_id])
-  invoice_data.buyer[:electronic_address]   = prompt("Buyer email (BT-49)",        invoice_data.buyer[:electronic_address])
+  prompt_electronic_address("buyer", invoice_data.buyer) unless invoice_data.profile.to_s.upcase == "MINIMUM"
   invoice_data.buyer[:trading_name]         = prompt_field("Buyer trading name", :trading_name, invoice_data.buyer[:trading_name])
-  invoice_data.buyer[:electronic_address_scheme] = prompt_field("Buyer address scheme", :electronic_address_scheme, invoice_data.buyer[:electronic_address_scheme])
 
   # B2B / B2C confirmation
   b2b = nil

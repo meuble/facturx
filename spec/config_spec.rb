@@ -13,10 +13,16 @@ RSpec.describe FacturX::Config do
       buyer:
         name: Test Buyer
         country_code: FR
+        electronic_address: "123456789"
+        electronic_address_scheme: "0225"
       invoice:
         number: TEST-001
         issue_date: "2024-01-15"
         due_date: "2024-02-15"
+        legal_notes:
+          PMT: "Recovery fee: 40 EUR"
+          PMD: "Late payment interest applies"
+          AAB: "No early payment discount"
       line_items:
         - id: "1"
           name: Test Item

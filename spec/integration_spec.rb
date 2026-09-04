@@ -24,7 +24,14 @@ RSpec.describe "Integration" do
       buyer: {
         name: "Buyer Co",
         vat_identifier: "FR987654321",
-        country_code: "FR"
+        country_code: "FR",
+        electronic_address: "987654321",
+        electronic_address_scheme: "0225"
+      },
+      legal_notes: {
+        "PMT" => "Recovery fee: 40 EUR",
+        "PMD" => "Late payment interest applies",
+        "AAB" => "No early payment discount"
       },
       line_items: [
         {
@@ -114,7 +121,13 @@ RSpec.describe "Integration" do
       buyer:
         name: Config Buyer
         country_code: FR
+        electronic_address: "111111111"
+        electronic_address_scheme: "0225"
       invoice:
+        legal_notes:
+          PMT: "Recovery fee: 40 EUR"
+          PMD: "Late payment interest applies"
+          AAB: "No early payment discount"
         number: CFG-001
         issue_date: "2024-06-01"
         due_date: "2024-07-01"

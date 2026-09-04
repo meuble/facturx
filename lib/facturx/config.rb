@@ -24,7 +24,8 @@ module FacturX
         currency_code:         @data["invoice"]["currency_code"],
         note:                  @data["invoice"]["note"],
         buyer_reference:       @data["invoice"]["buyer_reference"],
-        payment_terms:         @data["invoice"]["payment_terms"],
+         payment_terms:         @data["invoice"]["payment_terms"],
+         legal_notes:            (@data["invoice"]["legal_notes"] || {}).transform_keys(&:to_sym),
         seller:                @data["seller"].transform_keys(&:to_sym),
         buyer:                 @data["buyer"].transform_keys(&:to_sym),
         line_items:            @data["line_items"].map { |li| li.transform_keys(&:to_sym) },
@@ -69,7 +70,8 @@ module FacturX
           "currency_code" => "EUR",
           "note" => "",
           "buyer_reference" => "",
-          "payment_terms" => ""
+          "payment_terms" => "",
+          "legal_notes" => { "PMT" => "", "PMD" => "", "AAB" => "" }
         },
         "line_items" => [],
         "tax_breakdowns" => [],

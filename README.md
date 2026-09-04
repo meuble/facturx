@@ -139,6 +139,22 @@ For XSD validation against the official CII schema, set
 the command. EN 16931 Schematron validation remains dependent on the official
 rule distribution and should be run in the target PDP validator.
 
+For EN16931 submissions, provide the buyer's electronic address (BT-49) in
+the configuration or during `--interactive` review. This is the buyer's
+PEPPOL/PPF endpoint, not the buyer's VAT number or SIRET. For example:
+
+```yaml
+buyer:
+  electronic_address: "123456789"
+  electronic_address_scheme: "0225"
+```
+
+During interactive review, the tool explains the available French schemes:
+`0225` is the current SIREN-based e-invoicing scheme, `0002` is the French
+SIRENE scheme, and `0009` identifies a specific establishment by SIRET. Use
+the Peppol directory or ask the recipient's PDP when unsure; do not guess the
+scheme from the registration number alone.
+
 ---
 
 ## What Gets Extracted Automatically

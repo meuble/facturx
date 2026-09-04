@@ -31,6 +31,7 @@ module FacturX
         due_date:              extract_due_date,
         currency_code:         "EUR",
         note:                  extract_note,
+        legal_notes:           extract_legal_notes,
         seller:                seller,
         buyer:                 buyer,
         line_items:            items,
@@ -87,6 +88,19 @@ module FacturX
       m ? m[1].strip : nil
     end
 
+    def extract_legal_notes
+      {
+        "PMT" => extract_line(/(En cas de retard de paiement,.+)/i),
+        "PMD" => extract_line(/(Taux des pénalités en cas de retard de paiement\s*:.+)/i),
+        "AAB" => extract_line(/(Escompte en cas de paiement anticipé\s*:.+)/i)
+      }
+    end
+
+    def extract_line(pattern)
+      match = @text.match(pattern)
+      match && match[1].strip
+    end
+
     # ------------------------------------------------------------------
     # Seller
     # ------------------------------------------------------------------
@@ -137,6 +151,20 @@ module FacturX
 
       m = @text.match(/Email\s*[:.]?\s*([\w\.\-]+@[\w\.\-]+\.[a-z]{2,})/i)
       h[:electronic_address] = m[1] if m
+
+      m = @text.match(/PEPPOL\s*[:.]?\s*(\d{4}):([A-Za-z0-9._-]+)/i)
+      if m
+        h[:electronic_address] = m[2]
+        h[:electronic_address_scheme] = m[1]
+      end
+
+      unless h[:electronic_address]
+        ppf = @text.match(/PPF\s*[:.]?\s*(\d{9})/i)
+      end
+      if ppf
+        h[:electronic_address] = ppf[1]
+        h[:electronic_address_scheme] = "0002"
+      end
 
       h
     end

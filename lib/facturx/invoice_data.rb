@@ -9,7 +9,8 @@ module FacturX
   # All monetary amounts are stored as BigDecimal to avoid floating-point drift.
   class InvoiceData
     attr_accessor :profile, :number, :issue_date, :due_date, :currency_code,
-                  :note, :buyer_reference, :payment_terms,
+                   :note, :buyer_reference, :payment_terms,
+                   :legal_notes,
                   :seller, :buyer, :line_items, :tax_breakdowns,
                   :line_extension_amount, :tax_exclusive_amount,
                   :tax_inclusive_amount, :payable_amount, :prepaid_amount
@@ -32,6 +33,7 @@ module FacturX
       @note                   = attrs[:note]
       @buyer_reference        = attrs[:buyer_reference]
       @payment_terms          = attrs[:payment_terms]
+      @legal_notes            = attrs[:legal_notes] || {}
       @seller                 = attrs[:seller] || {}
       @buyer                  = attrs[:buyer] || {}
       @line_items             = attrs[:line_items] || []
@@ -68,6 +70,14 @@ module FacturX
       errors << "Due date cannot be before issue date" if @issue_date.is_a?(Date) && @due_date.is_a?(Date) && @due_date < @issue_date
       errors << "Seller name is required"    if blank?(@seller[:name])
       errors << "Buyer name is required"     if blank?(@buyer[:name])
+      if profile_name != "MINIMUM" && blank?(@buyer[:electronic_address])
+        errors << "Buyer electronic address (BT-49) is required for #{profile_name}"
+      end
+      unless profile_name == "MINIMUM"
+        %w[PMT PMD AAB].each do |code|
+          errors << "French legal note #{code} is required (BR-FR-05/BT-22)" if blank?(@legal_notes[code] || @legal_notes[code.to_sym])
+        end
+      end
       errors << "At least one line item is required" if @line_items.empty?
       errors << "Currency code is required"  if blank?(@currency_code)
       errors << "Currency code must be a 3-letter code" unless @currency_code.to_s.match?(/\A[A-Z]{3}\z/)

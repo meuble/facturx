@@ -55,6 +55,16 @@ module FacturX
         end
       end
 
+      exchanged_doc = doc.at("//rsm:ExchangedDocument")
+      @data.legal_notes.each do |code, content|
+        next if content.to_s.strip.empty?
+
+        note = Nokogiri::XML::Node.new("ram:IncludedNote", doc)
+        note.add_child(Nokogiri::XML::Node.new("ram:Content", doc).tap { |node| node.content = content.to_s })
+        note.add_child(Nokogiri::XML::Node.new("ram:SubjectCode", doc).tap { |node| node.content = code.to_s })
+        exchanged_doc.add_child(note)
+      end if exchanged_doc
+
       doc.to_xml(indent: 2)
     end
 

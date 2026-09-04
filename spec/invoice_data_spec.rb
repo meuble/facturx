@@ -10,7 +10,8 @@ RSpec.describe FacturX::InvoiceData do
       issue_date: Date.new(2026, 9, 1),
       currency_code: "EUR",
       seller: { name: "Forever Bije", country_code: "FR" },
-      buyer:  { name: "Pierlis", country_code: "FR" },
+       buyer:  { name: "Pierlis", country_code: "FR", electronic_address: "423137629", electronic_address_scheme: "0225" },
+       legal_notes: { "PMT" => "Recovery fee: 40 EUR", "PMD" => "Late payment interest applies", "AAB" => "No early payment discount" },
       line_items: [
         { id: "1", name: "Service", quantity: 1, unit_code: "C62", price_amount: 100.00, line_total_amount: 100.00, tax_percent: 20.0, tax_category: "S" }
       ],
@@ -67,6 +68,11 @@ RSpec.describe FacturX::InvoiceData do
     it "flags missing seller name" do
       inv = FacturX::InvoiceData.new(valid_attrs.merge(seller: { name: "" }))
       expect(inv.validate).to include(/seller name is required/i)
+    end
+
+    it "requires the buyer electronic address for EN16931" do
+      attrs = valid_attrs.merge(buyer: valid_attrs[:buyer].reject { |key, _| key == :electronic_address })
+      expect(FacturX::InvoiceData.new(attrs).validate).to include(/Buyer electronic address \(BT-49\)/)
     end
 
     it "flags empty line items" do

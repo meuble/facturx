@@ -18,6 +18,9 @@ seller:
 
 buyer:
   name: "Pierlis - M. RAYNAUD Pierre Loïc"
+  # Required for EN16931/PDP submissions. Ask the buyer for its PEPPOL or PPF ID.
+  # electronic_address: "BUYER_SIREN"
+  # electronic_address_scheme: "0225"
   legal_registration_id: "42313762900048"
   vat_identifier: "FR89423137629"
   postal_zone: "75007"
@@ -33,6 +36,10 @@ invoice:
   note: "Prestation techniques pour Pierlis - Août 2026"
   buyer_reference: ""
   payment_terms: "À réception de la facture"
+  legal_notes:
+    PMT: "En cas de retard de paiement, indemnité forfaitaire légale pour frais de recouvrement : 40,00 €"
+    PMD: "Taux des pénalités en cas de retard de paiement : taux directeur de refinancement de la BCE, majoré de 10 points"
+    AAB: "Escompte en cas de paiement anticipé : aucun"
 
 line_items:
   - id: "1"
