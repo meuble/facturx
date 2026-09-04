@@ -207,6 +207,19 @@ if options[:interactive]
   invoice_data.buyer[:legal_registration_id] = prompt("Buyer SIRET",               invoice_data.buyer[:legal_registration_id])
   invoice_data.buyer[:electronic_address]   = prompt("Buyer email (BT-49)",        invoice_data.buyer[:electronic_address])
 
+  # B2B / B2C confirmation
+  b2b = nil
+  until %w[b b2b c b2c].include?(b2b)
+    b2b = Readline.readline("Transaction type [B2B/b / B2C/c]: ", true)&.strip&.downcase
+  end
+
+  if b2b == "c" || b2b == "b2c"
+    puts "  → B2C mode: removing buyer SIRET (not allowed for e-reporting)"
+    invoice_data.buyer[:legal_registration_id] = nil
+  else
+    puts "  → B2B mode: keeping buyer SIRET"
+  end
+
   puts "\n=== INVOICE ==="
   invoice_data.number                       = prompt("Invoice number",             invoice_data.number,                       required: true)
   invoice_data.issue_date                   = Date.parse(prompt("Issue date (YYYY-MM-DD)", invoice_data.issue_date&.strftime("%Y-%m-%d"), required: true)) rescue invoice_data.issue_date
