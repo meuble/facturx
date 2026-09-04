@@ -11,6 +11,7 @@ require_relative "facturx/config"
 require_relative "facturx/xml_generator"
 require_relative "facturx/pdf_embedder"
 require_relative "facturx/pdf_extractor"
+require_relative "facturx/validator"
 
 module FacturX
   class Error < StandardError; end
@@ -34,7 +35,9 @@ module FacturX
                      raise ArgumentError, "Provide :data, :config_path, or a Hash"
                    end
 
-    xml  = XmlGenerator.new(invoice_data).generate
-    PdfEmbedder.new(xml).embed(input_pdf, output_pdf)
+    xml = XmlGenerator.new(invoice_data).generate
+    result = PdfEmbedder.new(xml).embed(input_pdf, output_pdf)
+    Validator.validate_pdf(result)
+    result
   end
 end

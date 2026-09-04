@@ -23,7 +23,7 @@ module FacturX
 
     def validate!
       errors = @data.validate
-      raise "Invoice validation failed:\n  - #{errors.join("\n  - ")}" unless errors.empty?
+      raise FacturX::ValidationError, "Invoice validation failed:\n  - #{errors.join("\n  - ")}" unless errors.empty?
     end
 
     def apply_french_fixes!(xml)
@@ -55,21 +55,6 @@ module FacturX
         end
       end
 
-      # BR-FR-05: Add French legal notes (PMT, PMD, AAB) - add BEFORE closing tag
-      exchanged_doc = doc.at("//rsm:ExchangedDocument")
-      if exchanged_doc
-        %w[PMT PMD AAB].each do |code|
-          note = doc.create_element("ram:IncludedNote")
-          content = doc.create_element("ram:Content")
-          content.content = "Non applicable"
-          subject = doc.create_element("ram:SubjectCode")
-          subject.content = code
-          note.add_child(content)
-          note.add_child(subject)
-          exchanged_doc.add_child(note)
-        end
-      end
-
       doc.to_xml(indent: 2)
     end
 
@@ -94,10 +79,12 @@ module FacturX
       invoice.tax_breakdown = build_tax_breakdown if @data.tax_breakdowns.any?
       invoice.monetary_totals = build_monetary_totals
 
-      if @data.seller[:iban]
+      if @data.seller[:iban] || @data.payment_terms
+        payment_attributes = { payment_means_code: @data.seller[:payment_means_code] || "58" }
+        payment_attributes[:account_id] = normalize_iban(@data.seller[:iban]) if @data.seller[:iban]
+        payment_attributes[:note] = @data.payment_terms if @data.payment_terms
         invoice.payment_instructions = Zugpferd::Model::PaymentInstructions.new(
-          payment_means_code: @data.seller[:payment_means_code] || "58",
-          account_id:         normalize_iban(@data.seller[:iban])
+          **payment_attributes
         )
       end
 

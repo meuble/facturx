@@ -90,8 +90,12 @@ RSpec.describe "Integration" do
 
       filespec = arr.to_a[1]
       expect(filespec[:Type]).to eq(:Filespec)
+      expect(filespec[:AF]).to eq(:Alternative)
 
       ef = filespec[:EF][:F]
+      expect(filespec[:EF][:UF]).to eq(ef)
+      expect(ef[:Subtype]).to eq(:"application#2Fxml")
+      expect(ef[:Params][:Size]).to eq(ef.stream.bytesize)
       expect(ef.stream).to include("CrossIndustryInvoice")
       expect(ef.stream).to include("Seller Co")
       expect(ef.stream).to include("INT-001")
@@ -159,5 +163,15 @@ RSpec.describe "Integration" do
       output.close!
       config_file.close!
     end
+  end
+
+  it "emits payment terms when they are provided" do
+    data = valid_data
+    data.seller = data.seller.reject { |key, _value| key == :iban }
+    data.payment_terms = "Payable within 30 days"
+
+    xml = FacturX::XmlGenerator.new(data).generate
+
+    expect(xml).to include("Payable within 30 days")
   end
 end

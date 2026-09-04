@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "hexapdf"
+require "digest"
 
 module FacturX
   # Embeds a Factur-X XML into an existing PDF, producing a PDF/A-3
@@ -51,17 +52,23 @@ module FacturX
       src.pages.each { |page| doc.pages << doc.import(page) }
 
       # 1. Embedded file stream
-      ef = doc.add({ Type: :EmbeddedFile, Subtype: :"text#2Fxml" })
+      ef = doc.add({ Type: :EmbeddedFile, Subtype: :"application#2Fxml" })
       ef.stream = @xml_content
+      ef[:Params] = {
+        Size: @xml_content.bytesize,
+        ModDate: Time.now,
+        CheckSum: Digest::MD5.digest(@xml_content)
+      }
 
       # 2. File specification
       filespec = doc.add({
         Type: :Filespec,
         F:    FACTURX_FILENAME,
         UF:   FACTURX_FILENAME,
-        Desc: "Factur-X invoice"
+        Desc: "Factur-X invoice",
+        AF:   :Alternative
       })
-      filespec[:EF] = { F: ef }
+      filespec[:EF] = { F: ef, UF: ef }
 
       # 3. Names tree (EmbeddedFiles)
       # Use explicit {Type: :Names} dict instead of doc.catalog.names
@@ -86,14 +93,16 @@ module FacturX
       meta.stream = format(XMP_TEMPLATE, conformance_level: @conformance_level)
       doc.catalog[:Metadata] = meta
 
-      # 6. OutputIntent for PDF/A-3
+      # 6. OutputIntent for PDF/A-3, including the required ICC profile.
       unless doc.catalog.key?(:OutputIntents)
+        icc = doc.add({ N: 3 }, stream: File.binread(File.join(HexaPDF.data_dir, "sRGB2014.icc")))
         output_intent = doc.add({
           Type:                      :OutputIntent,
           S:                         :GTS_PDFA1,
-          OutputConditionIdentifier: "sRGB IEC61966-2.1",
-          Info:                      "sRGB IEC61966-2.1",
-          RegistryName:              "http://www.color.org"
+          OutputConditionIdentifier: "sRGB2014.icc",
+          Info:                      "sRGB2014.icc",
+          RegistryName:              "https://www.color.org",
+          DestOutputProfile:         icc
         })
         doc.catalog[:OutputIntents] = [output_intent]
       end

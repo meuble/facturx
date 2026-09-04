@@ -131,25 +131,33 @@ begin
   if options[:config_path]
     config = FacturX::Config.new(options[:config_path])
     config_inv = config.to_invoice_data
+    overrides = config.overrides
 
-    # Simple merge: config values override extracted ones
-    invoice_data.profile   = config_inv.profile   if config_inv.profile
-    invoice_data.number    = config_inv.number    if config_inv.number
-    invoice_data.issue_date = config_inv.issue_date if config_inv.issue_date
-    invoice_data.due_date  = config_inv.due_date  if config_inv.due_date
-    invoice_data.currency_code = config_inv.currency_code if config_inv.currency_code
-    invoice_data.note      = config_inv.note      if config_inv.note
-    invoice_data.buyer_reference = config_inv.buyer_reference if config_inv.buyer_reference
-    invoice_data.payment_terms = config_inv.payment_terms if config_inv.payment_terms
-    invoice_data.seller    = config_inv.seller    if config_inv.seller&.any? { |_, v| v }
-    invoice_data.buyer     = config_inv.buyer     if config_inv.buyer&.any? { |_, v| v }
-    invoice_data.line_items = config_inv.line_items if config_inv.line_items&.any?
-    invoice_data.tax_breakdowns = config_inv.tax_breakdowns if config_inv.tax_breakdowns&.any?
-    invoice_data.line_extension_amount = config_inv.line_extension_amount if config_inv.line_extension_amount
-    invoice_data.tax_exclusive_amount = config_inv.tax_exclusive_amount if config_inv.tax_exclusive_amount
-    invoice_data.tax_inclusive_amount = config_inv.tax_inclusive_amount if config_inv.tax_inclusive_amount
-    invoice_data.payable_amount = config_inv.payable_amount if config_inv.payable_amount
-    invoice_data.prepaid_amount = config_inv.prepaid_amount if config_inv.prepaid_amount
+    # Apply only keys explicitly supplied by the user. This preserves extracted
+    # values when a YAML file contains a partial override.
+    invoice_data.profile = config_inv.profile if overrides.key?("profile")
+    if overrides.key?("invoice")
+      invoice_overrides = overrides["invoice"] || {}
+      invoice_data.number = config_inv.number if invoice_overrides.key?("number")
+      invoice_data.issue_date = config_inv.issue_date if invoice_overrides.key?("issue_date")
+      invoice_data.due_date = config_inv.due_date if invoice_overrides.key?("due_date")
+      invoice_data.currency_code = config_inv.currency_code if invoice_overrides.key?("currency_code")
+      invoice_data.note = config_inv.note if invoice_overrides.key?("note")
+      invoice_data.buyer_reference = config_inv.buyer_reference if invoice_overrides.key?("buyer_reference")
+      invoice_data.payment_terms = config_inv.payment_terms if invoice_overrides.key?("payment_terms")
+    end
+    invoice_data.seller = invoice_data.seller.merge((overrides["seller"] || {}).transform_keys(&:to_sym)) if overrides.key?("seller")
+    invoice_data.buyer = invoice_data.buyer.merge((overrides["buyer"] || {}).transform_keys(&:to_sym)) if overrides.key?("buyer")
+    invoice_data.line_items = config_inv.line_items if overrides.key?("line_items")
+    invoice_data.tax_breakdowns = config_inv.tax_breakdowns if overrides.key?("tax_breakdowns")
+    if overrides.key?("totals")
+      totals = overrides["totals"] || {}
+      invoice_data.line_extension_amount = config_inv.line_extension_amount if totals.key?("line_extension_amount")
+      invoice_data.tax_exclusive_amount = config_inv.tax_exclusive_amount if totals.key?("tax_exclusive_amount")
+      invoice_data.tax_inclusive_amount = config_inv.tax_inclusive_amount if totals.key?("tax_inclusive_amount")
+      invoice_data.payable_amount = config_inv.payable_amount if totals.key?("payable_amount")
+      invoice_data.prepaid_amount = config_inv.prepaid_amount if totals.key?("prepaid_amount")
+    end
   end
 rescue => e
   $stderr.puts "Error loading invoice data: #{e.message}"
@@ -157,18 +165,15 @@ rescue => e
   exit 1
 end
 
-# ------------------------------------------------------------------
-# Validate
-# ------------------------------------------------------------------
-errors = invoice_data.validate
-unless errors.empty?
-  $stderr.puts "Validation failed:"
-  errors.each { |e| $stderr.puts "  • #{e}" }
-  exit 1
-end
-
 if options[:validate_only]
-  puts "✅ Invoice data is valid."
+  errors = invoice_data.validate
+  if errors.empty?
+    puts "✅ Invoice data is valid."
+  else
+    $stderr.puts "Validation failed:"
+    errors.each { |e| $stderr.puts "  - #{e}" }
+    exit 1
+  end
   exit 0
 end
 
@@ -178,16 +183,83 @@ end
 if options[:interactive]
   require "readline"
 
+  FIELD_HELP = {
+    name: "Legal name shown on the invoice.",
+    trading_name: "Commercial name, if different from the legal name.",
+    street_name: "Street and building number.",
+    postal_zone: "Postal or ZIP code.",
+    city_name: "Town or city.",
+    country_code: "Two-letter ISO country code, for example FR.",
+    vat_identifier: "VAT identification number, for example FR12345678901.",
+    legal_registration_id: "Company registration identifier, such as a French SIREN/SIRET.",
+    iban: "Bank account identifier used to receive payment.",
+    bic: "Bank identifier code (SWIFT/BIC).",
+    payment_means_code: "UN/EDIFACT payment method code; 30 means credit transfer, 58 means SEPA credit transfer.",
+    electronic_address: "Electronic invoice address, such as a PEPPOL ID or email.",
+    electronic_address_scheme: "Code identifying the electronic address scheme, for example 0225 for French SIREN or EM for email.",
+    profile: "Factur-X detail level. EN16931 is the usual choice for PDP submission.",
+    buyer_reference: "Reference supplied by the buyer, often a purchase order or contract reference.",
+    payment_terms: "Human-readable payment conditions, for example payable within 30 days.",
+    quantity: "Number of units delivered or billed.",
+    unit_code: "UN/CEFACT unit code, for example C62 for a unit.",
+    price_amount: "Net unit price before VAT.",
+    line_total_amount: "Net total for this line: quantity multiplied by unit price.",
+    tax_percent: "VAT rate applied to the line or tax category.",
+    tax_category: "VAT category code; S means standard-rated VAT.",
+    taxable_amount: "Net amount subject to this VAT rate.",
+    tax_amount: "VAT amount for this tax breakdown.",
+    line_extension_amount: "Sum of all line totals before VAT.",
+    tax_exclusive_amount: "Invoice total before VAT.",
+    tax_inclusive_amount: "Invoice total including VAT.",
+    prepaid_amount: "Amount already paid before this invoice.",
+    payable_amount: "Amount still due: total including VAT minus prepaid amount."
+  }.freeze
+
   def prompt(label, current_value, required: false)
-    default = current_value.to_s.strip.empty? ? nil : current_value.to_s.strip
+    value = current_value.is_a?(BigDecimal) ? current_value.to_s("F") : current_value
+    default = value.to_s.strip.empty? ? nil : value.to_s.strip
     prompt_text = default ? "#{label} [#{default}]: " : "#{label}#{required ? ' (REQUIRED)' : ''}: "
     input = Readline.readline(prompt_text, true)&.strip
     input = nil if input&.empty?
     input || default
   end
 
+  def prompt_decimal(label, current_value, field: nil, required: false)
+    puts "  #{FIELD_HELP[field]}" if field && FIELD_HELP[field]
+    value = prompt(label, current_value, required: required)
+    return current_value if value.nil? && !required
+
+    BigDecimal(value.to_s.tr(",", "."))
+  rescue ArgumentError
+    puts "  Invalid number; keeping the current value."
+    current_value
+  end
+
+  def prompt_date(label, current_value, required: false)
+    value = prompt(label, current_value&.strftime("%Y-%m-%d"), required: required)
+    return current_value if value.nil? && !required
+
+    Date.parse(value.to_s)
+  rescue ArgumentError
+    puts "  Invalid date; keeping the current value."
+    current_value
+  end
+
+  def prompt_fields(section, object, fields)
+    required_fields = section == "SELLER" || section == "BUYER" ? [:name] : []
+    puts "\n=== #{section} ==="
+    fields.each do |field|
+      object[field] = prompt_field("#{section.capitalize} #{field}", field, object[field], required: required_fields.include?(field))
+    end
+  end
+
+  def prompt_field(label, field, current_value, required: false)
+    puts "  #{FIELD_HELP[field]}" if FIELD_HELP[field]
+    prompt("#{label}#{required ? ' *' : ''}", current_value, required: required)
+  end
+
   puts "\n=== SELLER ==="
-  invoice_data.seller[:name]                = prompt("Seller name",                invoice_data.seller[:name],                required: true)
+  invoice_data.seller[:name]                = prompt_field("Seller name", :name, invoice_data.seller[:name], required: true)
   invoice_data.seller[:street_name]         = prompt("Seller street",              invoice_data.seller[:street_name])
   invoice_data.seller[:postal_zone]         = prompt("Seller postal code",         invoice_data.seller[:postal_zone])
   invoice_data.seller[:city_name]           = prompt("Seller city",                invoice_data.seller[:city_name])
@@ -196,9 +268,13 @@ if options[:interactive]
   invoice_data.seller[:legal_registration_id] = prompt("Seller SIREN",             invoice_data.seller[:legal_registration_id], required: true)
   invoice_data.seller[:iban]                = prompt("Seller IBAN",                invoice_data.seller[:iban])
   invoice_data.seller[:electronic_address]  = prompt("Seller email (PEPPOL/PPF)",  invoice_data.seller[:electronic_address])
+  invoice_data.seller[:trading_name]        = prompt_field("Seller trading name", :trading_name, invoice_data.seller[:trading_name])
+  invoice_data.seller[:bic]                 = prompt_field("Seller BIC", :bic, invoice_data.seller[:bic])
+  invoice_data.seller[:payment_means_code]  = prompt_field("Payment means code", :payment_means_code, invoice_data.seller[:payment_means_code])
+  invoice_data.seller[:electronic_address_scheme] = prompt_field("Seller address scheme", :electronic_address_scheme, invoice_data.seller[:electronic_address_scheme])
 
   puts "\n=== BUYER ==="
-  invoice_data.buyer[:name]                 = prompt("Buyer name",                 invoice_data.buyer[:name],                 required: true)
+  invoice_data.buyer[:name]                 = prompt_field("Buyer name", :name, invoice_data.buyer[:name], required: true)
   invoice_data.buyer[:street_name]          = prompt("Buyer street",               invoice_data.buyer[:street_name])
   invoice_data.buyer[:postal_zone]          = prompt("Buyer postal code",          invoice_data.buyer[:postal_zone])
   invoice_data.buyer[:city_name]            = prompt("Buyer city",                 invoice_data.buyer[:city_name])
@@ -206,6 +282,8 @@ if options[:interactive]
   invoice_data.buyer[:vat_identifier]       = prompt("Buyer TVA",                  invoice_data.buyer[:vat_identifier],       required: true)
   invoice_data.buyer[:legal_registration_id] = prompt("Buyer SIRET",               invoice_data.buyer[:legal_registration_id])
   invoice_data.buyer[:electronic_address]   = prompt("Buyer email (BT-49)",        invoice_data.buyer[:electronic_address])
+  invoice_data.buyer[:trading_name]         = prompt_field("Buyer trading name", :trading_name, invoice_data.buyer[:trading_name])
+  invoice_data.buyer[:electronic_address_scheme] = prompt_field("Buyer address scheme", :electronic_address_scheme, invoice_data.buyer[:electronic_address_scheme])
 
   # B2B / B2C confirmation
   b2b = nil
@@ -221,18 +299,59 @@ if options[:interactive]
   end
 
   puts "\n=== INVOICE ==="
-  invoice_data.number                       = prompt("Invoice number",             invoice_data.number,                       required: true)
-  invoice_data.issue_date                   = Date.parse(prompt("Issue date (YYYY-MM-DD)", invoice_data.issue_date&.strftime("%Y-%m-%d"), required: true)) rescue invoice_data.issue_date
-  invoice_data.due_date                     = Date.parse(prompt("Due date (YYYY-MM-DD)",   invoice_data.due_date&.strftime("%Y-%m-%d"))) rescue invoice_data.due_date
+  invoice_data.number                       = prompt("Invoice number *",             invoice_data.number,                       required: true)
+  invoice_data.issue_date                   = prompt_date("Issue date *", invoice_data.issue_date, required: true)
+  invoice_data.due_date                     = prompt_date("Due date", invoice_data.due_date)
   invoice_data.currency_code                = prompt("Currency",                   invoice_data.currency_code) || "EUR"
-  invoice_data.note                         = prompt("Note / objet",               invoice_data.note)
+  invoice_data.note                         = prompt_field("Note / objet", :note, invoice_data.note)
+  invoice_data.profile                      = prompt_field("Profile", :profile, invoice_data.profile) || "EN16931"
+  invoice_data.buyer_reference              = prompt_field("Buyer reference", :buyer_reference, invoice_data.buyer_reference)
+  invoice_data.payment_terms                = prompt_field("Payment terms", :payment_terms, invoice_data.payment_terms)
+
+  puts "\n=== LINE ITEMS ==="
+  invoice_data.line_items.each_with_index do |item, index|
+    puts "-- Line #{index + 1} --"
+    item[:id] = prompt_field("Line ID", :id, item[:id], required: true)
+    item[:name] = prompt_field("Name", :name, item[:name], required: true)
+    item[:description] = prompt_field("Description", :description, item[:description])
+    item[:quantity] = prompt_decimal("Quantity *", item[:quantity], field: :quantity, required: true)
+    item[:unit_code] = prompt_field("Unit code", :unit_code, item[:unit_code], required: true)
+    item[:price_amount] = prompt_decimal("Unit price *", item[:price_amount], field: :price_amount, required: true)
+    item[:line_total_amount] = prompt_decimal("Line total *", item[:line_total_amount], field: :line_total_amount, required: true)
+    item[:tax_percent] = prompt_decimal("VAT rate *", item[:tax_percent], field: :tax_percent, required: true)
+    item[:tax_category] = prompt_field("VAT category", :tax_category, item[:tax_category], required: true)
+    item[:note] = prompt_field("Line note", :note, item[:note])
+  end
+
+  puts "\n=== TAX BREAKDOWNS ==="
+  invoice_data.tax_breakdowns.each_with_index do |tax, index|
+    puts "-- Tax #{index + 1} --"
+    tax[:taxable_amount] = prompt_decimal("Taxable amount", tax[:taxable_amount], field: :taxable_amount, required: true)
+    tax[:tax_amount] = prompt_decimal("VAT amount", tax[:tax_amount], field: :tax_amount, required: true)
+    tax[:tax_percent] = prompt_decimal("VAT rate", tax[:tax_percent], field: :tax_percent, required: true)
+    tax[:tax_category] = prompt_field("VAT category", :tax_category, tax[:tax_category], required: true)
+  end
+
+  puts "\n=== TOTALS ==="
+  invoice_data.line_extension_amount = prompt_decimal("Line extension total", invoice_data.line_extension_amount, field: :line_extension_amount, required: true)
+  invoice_data.tax_exclusive_amount = prompt_decimal("Tax-exclusive total", invoice_data.tax_exclusive_amount, field: :tax_exclusive_amount, required: true)
+  invoice_data.tax_inclusive_amount = prompt_decimal("Tax-inclusive total", invoice_data.tax_inclusive_amount, field: :tax_inclusive_amount, required: true)
+  invoice_data.prepaid_amount = prompt_decimal("Prepaid amount", invoice_data.prepaid_amount, field: :prepaid_amount, required: true)
+  invoice_data.payable_amount = prompt_decimal("Payable amount", invoice_data.payable_amount, field: :payable_amount, required: true)
 
   puts "\n"
 end
 
 # ------------------------------------------------------------------
-# Validate
+# Validate after interactive corrections
 # ------------------------------------------------------------------
+errors = invoice_data.validate
+unless errors.empty?
+  $stderr.puts "Validation failed:"
+  errors.each { |e| $stderr.puts "  - #{e}" }
+  exit 1
+end
+
 begin
   FacturX.generate(
     input_pdf: options[:input_pdf],

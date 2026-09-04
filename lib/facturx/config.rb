@@ -6,11 +6,13 @@ require "date"
 module FacturX
   # Loads invoice data from a YAML configuration file.
   class Config
-    attr_reader :data
+    attr_reader :data, :overrides
 
     def initialize(path = nil)
       @data = default_data
+      @overrides = {}
       load_file(path) if path && File.exist?(path)
+      raise ArgumentError, "Config file not found: #{path}" if path && !File.exist?(path)
     end
 
     def to_invoice_data
@@ -82,11 +84,15 @@ module FacturX
     end
 
     def load_file(path)
-      content = YAML.load_file(path)
+      content = YAML.safe_load(File.read(path), permitted_classes: [Date], aliases: false)
+      unless content.nil? || content.is_a?(Hash)
+        raise ArgumentError, "Config root must be a mapping"
+      end
+      @overrides = content || {}
       @data = deep_merge(@data, content || {})
     rescue Psych::SyntaxError => e
       raise "Invalid YAML syntax in #{path}: #{e.message}"
-    rescue => e
+    rescue StandardError => e
       raise "Failed to load config #{path}: #{e.message}"
     end
 

@@ -48,7 +48,7 @@ RSpec.describe FacturX::Config do
     end
 
     it "raises on missing file" do
-      expect { FacturX::Config.new("/nonexistent.yaml") }.not_to raise_error
+      expect { FacturX::Config.new("/nonexistent.yaml") }.to raise_error(ArgumentError, /not found/)
     end
   end
 
@@ -86,6 +86,7 @@ RSpec.describe FacturX::Config do
         cfg = FacturX::Config.new(f.path)
         expect(cfg.data["seller"]["name"]).to eq("Override Name")
         expect(cfg.data["seller"]["country_code"]).to eq("FR") # from defaults
+        expect(cfg.overrides).to eq("seller" => { "name" => "Override Name" })
       end
     end
   end

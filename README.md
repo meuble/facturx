@@ -33,7 +33,9 @@ The tool automatically extracts invoice data from the PDF and generates a valid 
 ruby -Ilib bin/facturx input.pdf -o output-facturx.pdf
 ```
 
-That's it. No configuration file needed.
+That's it. The generated artifact is checked locally for the required Factur-X
+attachment and PDF/A output intent. You should still run it through your PDP's
+validator before sending it.
 
 ### Optional YAML override
 
@@ -72,7 +74,7 @@ To review and confirm every extracted field before generating:
 ruby -Ilib bin/facturx input.pdf -i -o output-facturx.pdf
 ```
 
-The CLI will prompt you for each field (seller, buyer, invoice) showing the extracted value as a default. Just press Enter to accept, or type a new value to override. This is especially useful for:
+The CLI will prompt you for every extracted field (seller, buyer, invoice, line items, VAT breakdowns, and totals), showing the extracted value as a default. Just press Enter to accept, or type a new value to override. Validation runs after the review. This is especially useful for:
 - Verifying buyer email (BT-49) instead of using a placeholder
 - Correcting buyer SIRET/SIREN classification for B2B/B2C
 - Confirming TVA numbers and addresses
@@ -132,6 +134,11 @@ FacturX.generate(
 )
 ```
 
+For XSD validation against the official CII schema, set
+`FACTURX_CII_SCHEMA=/path/to/CrossIndustryInvoice_100pD16B.xsd` when running
+the command. EN 16931 Schematron validation remains dependent on the official
+rule distribution and should be run in the target PDP validator.
+
 ---
 
 ## What Gets Extracted Automatically
@@ -180,7 +187,7 @@ lib/
 1. **zugpferd** for XML generation — produces valid CII D16B XML, avoids hand-rolled XML pitfalls.
 2. **hexapdf** for PDF manipulation — writes low-level structures (Names tree, AF array, XMP, OutputIntent) without shelling out.
 3. **InvoiceData** validation — checks field presence, monetary consistency (line totals, tax, grand total), and required EN 16931 fields before generation.
-4. **PDF version handling** — forces PDF 1.7+ in catalog so embedded files and AF arrays are recognized by validators.
+4. **PDF/A metadata** — sets the associated-file relationship, embedded-file parameters, and an sRGB ICC output profile.
 5. **Auto-extraction** — zero-config approach: parse the PDF text heuristically, then let the user optionally override with YAML.
 
 ---

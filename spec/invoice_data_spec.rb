@@ -78,6 +78,20 @@ RSpec.describe FacturX::InvoiceData do
       inv = FacturX::InvoiceData.new(valid_attrs.merge(line_extension_amount: 999.00))
       expect(inv.validate).to include(/Line total/i)
     end
+
+    it "flags a line total that does not match quantity and price" do
+      attrs = valid_attrs.merge(line_items: [valid_attrs[:line_items].first.merge(line_total_amount: 99.00)])
+      expect(FacturX::InvoiceData.new(attrs).validate).to include(/quantity.*price/i)
+    end
+
+    it "flags payable totals that ignore prepaid amounts" do
+      attrs = valid_attrs.merge(prepaid_amount: 20.00)
+      expect(FacturX::InvoiceData.new(attrs).validate).to include(/Payable amount/i)
+    end
+
+    it "rejects unknown profiles" do
+      expect(FacturX::InvoiceData.new(valid_attrs.merge(profile: "UNKNOWN")).validate).to include(/Unknown profile/)
+    end
   end
 
   describe "#valid?" do

@@ -203,11 +203,13 @@ module FacturX
     # Line items
     # ------------------------------------------------------------------
 
+    NUMBER_PATTERN = /\d+(?:[ .]\d{3})*(?:[,.]\d+)?/
+
     ITEM_RE = %r{
-      (?<tax>[\d\s]+[,\.][\d]+)\s*%?\s+
-      (?<price>[\d\s]+[,\.][\d]+)\s*€?\s+
-      (?<qty>\d+)\s+
-      (?<total>[\d\s]+[,\.][\d]+)\s*€?
+       (?<tax>#{NUMBER_PATTERN})\s*%?\s+
+       (?<price>#{NUMBER_PATTERN})\s*€?\s+
+       (?<qty>#{NUMBER_PATTERN})\s+
+       (?<total>#{NUMBER_PATTERN})\s*€?
     }x
 
     def extract_line_items
@@ -237,7 +239,7 @@ module FacturX
             id:                (items.length + 1).to_s,
             name:              name,
             description:       desc.empty? ? nil : desc,
-            quantity:          m[:qty].to_i,
+             quantity:          parse_amount(m[:qty]),
             unit_code:         "C62",
             price_amount:      parse_amount(m[:price]),
             line_total_amount: parse_amount(m[:total]),
@@ -263,13 +265,13 @@ module FacturX
       tax_amt  = 0
 
       # Prefer extracted totals from text
-      m = @text.match(/Total\s*HT\s+([\d\s]+[,\.][\d]+)/i)
+       m = @text.match(/Total\s*HT\s+(#{NUMBER_PATTERN})/i)
       line_ext = parse_amount(m[1]) if m
 
-      m = @text.match(/TVA\s+\d+[,\.]?\d*\s*%?\s+([\d\s]+[,\.][\d]+)/i)
+       m = @text.match(/TVA\s+#{NUMBER_PATTERN}\s*%?\s+(#{NUMBER_PATTERN})/i)
       tax_amt = parse_amount(m[1]) if m
 
-      m = @text.match(/TOTAL\s*TTC\s+([\d\s]+[,\.][\d]+)/i)
+       m = @text.match(/TOTAL\s*TTC\s+(#{NUMBER_PATTERN})/i)
       tax_inc = m ? parse_amount(m[1]) : (line_ext + tax_amt)
 
       {
@@ -285,7 +287,7 @@ module FacturX
       return [] unless totals[:line_extension] && totals[:tax_amount]
 
       rate = 20.0
-      m = @text.match(/TVA\s+([\d\s]+[,\.][\d]+)\s*%/i)
+       m = @text.match(/TVA\s+(#{NUMBER_PATTERN})\s*%/i)
       rate = parse_amount(m[1]).to_f if m
 
       [{
@@ -323,8 +325,19 @@ module FacturX
     end
 
     def parse_amount(str)
-      str.to_s.gsub(/\s/, "").gsub(",", ".").to_d
-    rescue
+      value = str.to_s.gsub(/\s/, "").strip
+      return nil if value.empty?
+
+      # Accept French (1.234,56), English (1,234.56), and plain decimals.
+      if value.include?(",") && value.include?(".")
+        value = value.rindex(",") > value.rindex(".") ? value.delete(".").tr(",", ".") : value.delete(",")
+      elsif value.count(",") == 1
+        value = value.tr(",", ".")
+      elsif value.count(".") > 1
+        value = value.delete(".")
+      end
+      value.to_d
+    rescue StandardError
       nil
     end
   end
