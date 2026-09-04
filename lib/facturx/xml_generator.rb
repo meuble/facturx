@@ -29,12 +29,12 @@ module FacturX
     def apply_french_fixes!(xml)
       doc = Nokogiri::XML(xml)
 
-      # BR-FR-10: Add schemeID="0002" to ALL 9-digit SIREN IDs
-      # in both SellerTradeParty and BuyerTradeParty
+      # BR-FR-10: the scheme belongs to the legal registration identifier,
+      # not to the party's generic ram:ID (where French PDPs reject it).
       %w[SellerTradeParty BuyerTradeParty].each do |party_name|
         trade_party = doc.at("//ram:#{party_name}")
         if trade_party
-          trade_party.xpath(".//ram:ID[not(@schemeID)]").each do |id_node|
+          trade_party.xpath(".//ram:SpecifiedLegalOrganization/ram:ID[not(@schemeID)]").each do |id_node|
             if id_node.text.strip.match?(/^\d{9}$/)
               id_node["schemeID"] = "0002"
             end
@@ -82,8 +82,8 @@ module FacturX
       invoice.due_date        = @data.due_date        if @data.due_date
       invoice.delivery_date   = @data.due_date        if @data.due_date
 
-      invoice.seller = build_trade_party(@data.seller)
-      invoice.buyer  = build_trade_party(@data.buyer)
+      invoice.seller = build_trade_party(@data.seller, role: :seller)
+      invoice.buyer  = build_trade_party(@data.buyer, role: :buyer)
 
       invoice.line_items = @data.line_items.map { |li| build_line_item(li) }
       invoice.tax_breakdown = build_tax_breakdown if @data.tax_breakdowns.any?
@@ -101,7 +101,7 @@ module FacturX
       invoice
     end
 
-    def build_trade_party(hash)
+    def build_trade_party(hash, role:)
       party = Zugpferd::Model::TradeParty.new(
         name: hash[:name]
       )
@@ -128,7 +128,9 @@ module FacturX
       end
 
       party.vat_identifier        = hash[:vat_identifier]        if hash[:vat_identifier]
-      party.legal_registration_id = hash[:legal_registration_id].to_s.strip unless hash[:legal_registration_id].to_s.strip.empty?
+      legal_registration_id = hash[:legal_registration_id].to_s.strip
+      legal_registration_id = legal_registration_id[0, 9] if role == :buyer && legal_registration_id.match?(/^\d{14}$/)
+      party.legal_registration_id = legal_registration_id unless legal_registration_id.empty?
 
       # For buyer: if legal_registration_id is a 14-digit SIRET,
       # set identifier (ram:ID / BT-46) to the 9-digit SIREN to avoid

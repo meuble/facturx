@@ -5,14 +5,14 @@ require_relative "lib/facturx/version"
 Gem::Specification.new do |spec|
   spec.name          = "facturx"
   spec.version       = FacturX::VERSION
-  spec.authors       = ["Forever Bije"]
-  spec.email         = ["team@foreverbije.com"]
+  spec.authors       = ["Example Maintainer"]
+  spec.email         = ["dev@example.com"]
 
   spec.summary       = "Generate Factur-X / ZUGFeRD conformant hybrid PDF invoices"
   spec.description   = "Lightweight Ruby library and CLI for generating Factur-X (EN 16931) " \
                        "conformant PDF/A-3b invoices with embedded CII XML. " \
                        "Auto-extracts data from existing PDFs or accepts structured input."
-  spec.homepage      = "https://github.com/foreverbije/facturx"
+  spec.homepage      = "https://github.com/example/facturx"
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
 

@@ -19,7 +19,7 @@ RSpec.describe "Integration" do
         street_name: "1 Rue Test",
         city_name: "PARIS",
         country_code: "FR",
-        iban: "FR7612345678901234567890123"
+        iban: "FR7630006000011234567890189"
       },
       buyer: {
         name: "Buyer Co",
@@ -186,5 +186,17 @@ RSpec.describe "Integration" do
     xml = FacturX::XmlGenerator.new(data).generate
 
     expect(xml).to include("Payable within 30 days")
+  end
+
+  it "normalizes a buyer SIRET and scopes the French scheme to legal registration" do
+    data = valid_data
+    data.buyer[:legal_registration_id] = "98765432100012"
+
+    xml = FacturX::XmlGenerator.new(data).generate
+    buyer = Nokogiri::XML(xml).at("//ram:BuyerTradeParty")
+
+    expect(buyer.at("./ram:ID").text).to eq("987654321")
+    expect(buyer.at("./ram:ID").attr("schemeID")).to be_nil
+    expect(buyer.at("./ram:SpecifiedLegalOrganization/ram:ID").attr("schemeID")).to eq("0002")
   end
 end

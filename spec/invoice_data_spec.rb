@@ -6,11 +6,11 @@ RSpec.describe FacturX::InvoiceData do
   let(:valid_attrs) do
     {
       profile: "EN16931",
-      number: "202609-1",
+      number: "DEMO-001",
       issue_date: Date.new(2026, 9, 1),
       currency_code: "EUR",
-      seller: { name: "Forever Bije", country_code: "FR" },
-       buyer:  { name: "Pierlis", country_code: "FR", electronic_address: "423137629", electronic_address_scheme: "0225" },
+       seller: { name: "Demo Seller SAS", country_code: "FR" },
+       buyer:  { name: "Example Customer SARL", country_code: "FR", electronic_address: "987654321", electronic_address_scheme: "0225" },
        legal_notes: { "PMT" => "Recovery fee: 40 EUR", "PMD" => "Late payment interest applies", "AAB" => "No early payment discount" },
       line_items: [
         { id: "1", name: "Service", quantity: 1, unit_code: "C62", price_amount: 100.00, line_total_amount: 100.00, tax_percent: 20.0, tax_category: "S" }
@@ -35,7 +35,7 @@ RSpec.describe FacturX::InvoiceData do
 
     it "accepts custom attributes" do
       inv = FacturX::InvoiceData.new(valid_attrs)
-      expect(inv.number).to eq("202609-1")
+      expect(inv.number).to eq("DEMO-001")
       expect(inv.issue_date).to eq(Date.new(2026, 9, 1))
     end
   end
