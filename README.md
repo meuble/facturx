@@ -44,7 +44,7 @@ If the PDF extraction misses something (or you want to override specific fields)
 ```yaml
 # override.yaml
 seller:
-  electronic_address: "demo@example.com"
+  electronic_address: "team@foreverbije.com"
   electronic_address_scheme: "EM"
 ```
 
