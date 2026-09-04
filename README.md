@@ -64,6 +64,19 @@ ruby -Ilib bin/facturx input.pdf -e
 
 This is useful for verifying extraction quality before generating.
 
+### Interactive review mode
+
+To review and confirm every extracted field before generating:
+
+```bash
+ruby -Ilib bin/facturx input.pdf -i -o output-facturx.pdf
+```
+
+The CLI will prompt you for each field (seller, buyer, invoice) showing the extracted value as a default. Just press Enter to accept, or type a new value to override. This is especially useful for:
+- Verifying buyer email (BT-49) instead of using a placeholder
+- Correcting buyer SIRET/SIREN classification for B2B/B2C
+- Confirming TVA numbers and addresses
+
 ### Options
 
 | Flag | Description |
@@ -72,6 +85,7 @@ This is useful for verifying extraction quality before generating.
 | `-c, --config FILE` | Optional YAML file to override extracted data |
 | `-p, --profile PROFILE` | Factur-X profile: MINIMUM, BASICWL, BASIC, EN16931, EXTENDED |
 | `-e, --extract` | Extract data as YAML, do not generate PDF |
+| `-i, --interactive` | Review and confirm extracted data interactively before generating |
 | `--validate` | Validate without generating |
 | `-v, --version` | Show version |
 

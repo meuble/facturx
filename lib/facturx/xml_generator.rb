@@ -153,14 +153,6 @@ module FacturX
         party.electronic_address_scheme = hash[:electronic_address_scheme] || "EM"
       end
 
-      # BR-FR-12: BT-49 (buyer electronic address) is mandatory in France.
-      # Ensure buyer always has a URIUniversalCommunication element.
-      # If no email was provided, fall back to a placeholder so zugpferd emits it.
-      unless party.electronic_address
-        party.electronic_address        = "contact@client.fr"
-        party.electronic_address_scheme = "EM"
-      end
-
       party
     end
 
